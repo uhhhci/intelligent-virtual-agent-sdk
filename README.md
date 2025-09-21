@@ -97,7 +97,7 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
     ##### **Option A**
     Add the package to the project the package by adding this by git URL to your Unity Package Manager:
 
-        https://git.informatik.uni-hamburg.de/presence/internal/ivh-sdk/packages/ivh-sdk-core.git
+    https://github.com/uhhhci/intelligent-virtual-agent-sdk.git
 
     For further information on how to add a Unity package from Git, please see the [Unity Documentation](https://docs.unity3d.com/Manual/upm-ui-giturl.html). Be aware that the imported package is immutable and won't be auto-upgraded. To upgrade to a new release, remove the package from the project and add it again.
 
