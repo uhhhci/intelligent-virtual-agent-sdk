@@ -1,0 +1,20 @@
+{
+    "name": "Uhh.hci.ivh.core.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:b193674ba3391294db039dd816de379f",
+        "GUID:a28a0ede888098f48be24ef95777d9bd",
+        "GUID:6eaf7a701d30a1c4db391cdaca6c2d58"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

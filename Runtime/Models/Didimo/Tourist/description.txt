@@ -1,0 +1,15 @@
+Name: Tourist
+Version: v004
+Use case: UC2.2 Cultural Heritage
+Type: Virtual Agent
+Ethnicity: Female Caucasian 2
+Age: 25
+Body Type: Average
+Height: 1,85
+Garments: Tourist SGarments
+Hair: Black
+User generated: No
+Blendshapes Colection: ARKit, OCVR
+Rig Structure: Humanoid
+Rig TwistBones: No
+Rig SenseGlove support: No

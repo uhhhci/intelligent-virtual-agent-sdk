@@ -1,0 +1,20 @@
+{
+    "name": "Uhh.hci.ivh.core.Runtime",
+    "rootNamespace": "",
+    "references": [
+        "GUID:7f7d1af65c2641843945d409d28f2e20",
+        "GUID:bf7126905a54c9746b9c475d69312766",
+        "GUID:05de2cdf0bba8584abae6189ffeda018",
+        "com.gpt4all.unity",
+        "com.whisper.unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,30 @@
+{
+  "name": "de.uhh.hci.ivh.core",
+  "version": "1.0.0",
+  "displayName": "Intelligent Virtual Human SDK Core",
+  "description": "Core package of Intelligent Virtual Human SDK",
+  "unity": "2022.3",
+  "documentationUrl": "",
+  "author": {
+    "name": "Universit\u00e4t Hamburg - HCI",
+    "email": "frank.steinicke@uni-hamburg.de",
+    "url": "https://www.inf.uni-hamburg.de/en/inst/ab/hci.html"
+  },
+  "dependencies": {
+    "com.unity.animation.rigging": "1.2.1",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.oculus.unity.integration.lip-sync": "29.0.0"
+  },
+    "samples": [
+    {
+      "displayName": "Basic Sample Scene ",
+      "description": "A basic sample scene using Rocketbox character in 2D display and in VR",
+      "path": "Samples/BasicConversationalAgent"
+    }, 
+    {
+      "displayName": "Advanced Sample Scenes",
+      "description": "An advanced sample scene interacting with an intelligent virtual agent via webcam",
+      "path": "Samples/AdvanceAgent"
+    }
+  ]
+}
