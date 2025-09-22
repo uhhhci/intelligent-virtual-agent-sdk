@@ -8,20 +8,10 @@ The package contains the Intelligent Virtual Human SDK developed by the [human c
 
 ##  Demo
 
-<p align="center">
-  <figure style="display:inline-block; text-align:center; margin:10px;">
-    <img src="./Documentations/images/CC4integration.gif" width="215"/><br/>
-    <figcaption>CC4 character integration </figcaption>
-  </figure>
-  <figure style="display:inline-block; text-align:center; margin:10px;">
-    <img src="./Documentations/images/rocketboxIntegration.gif" width="200"/><br/>
-    <figcaption>Rocketbox integration</figcaption>
-  </figure>
-  <figure style="display:inline-block; text-align:center; margin:10px;">
-    <img src="./Documentations/images/DIDIMOIntegration.gif" width="208"/><br/>
-    <figcaption>DIDIMO character integration</figcaption>
-  </figure>
-</p>
+<img src="./Documentations/images/interoperability.gif" alt="teaser"
+    style="float: center; margin-right: 10px; " /> 
+
+Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual humans. Due to the license restriction, we only include an example character and animations from Rocketbox characters. 
 
 See [here](https://www.youtube.com/watch?v=RDT30Evpmic&feature=youtu.be) for full demo video of the possibilities with this toolkit.
 
