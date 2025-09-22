@@ -33,7 +33,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: m_idle_roll_head_01
+      name: midlerollhead01
       takeName: Take 001
       internalID: 1827226128182048838
       firstFrame: 0

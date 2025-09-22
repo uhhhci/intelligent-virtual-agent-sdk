@@ -63,11 +63,13 @@ The image above shows the interaction loop of a conversational virtual agent.
 ### Development Road Maps
 
 Features coming soon: 
+- update and improve documentation
+- Add ``Unity_STT_GoogleCloud`` and ``Unity_STT_Azure``
 - proximity detection in VR
 - gesture recognition integration
 - integration of more diverse publically avalibleble animations and more diverse ready-made animation controllers
 - spatial understanding
-- update and improve documentation
+- memory management for long term interaction
 
 ## Quick Start
 
@@ -117,6 +119,9 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
     - Under the `Cloud Service Settings` in the Editor, choose the UHAM services for TTS, Foundation Model and STT Service.
 
     - After you added both the Animator Controller and the agent model, click on `Setup Agent` in the Editor.
+
+    - In the ``BasicServerManager`` game object and in ``Google TTS``, choose the desired voice for your character. 
+
 
     - Add the `Packages/de.uhh.hci.ivh.core/Runtime/Prefabs/PreviewScenePrefab.prefab` to the scene for better lighting and appearance of the scene. 
 

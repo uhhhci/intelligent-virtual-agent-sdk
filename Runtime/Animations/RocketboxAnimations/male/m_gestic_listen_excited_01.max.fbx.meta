@@ -33,7 +33,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: m_gestic_listen_excited_01
+      name: mgesticlistenexcited01
       takeName: Take 001
       internalID: 1827226128182048838
       firstFrame: 0

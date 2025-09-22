@@ -167,6 +167,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                 {
                     agent.StopSimpleChat();
                 }
+                if (GUILayout.Button("Instant Actor"))
+                {
+                    
+                    agent.StartQuickSpeech(agent.SimpleText);
+                }
+
             }
 
             // Apply changes to the serialized object

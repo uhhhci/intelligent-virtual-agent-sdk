@@ -283,6 +283,62 @@ namespace IVH.Core.IntelligentVirtualAgent
             GUILayout.EndVertical();
 #endif
         }
+
+        public void StartQuickSpeech(string text)
+        {
+            InitializeConversation();
+            StartCoroutine(QuickSpeech(text));
+        }
+        private IEnumerator QuickSpeech(string text)
+        {
+            QueryLLM_Text("please simply speak the following text while performing the approporiate facial expressions and actions: " +text);
+
+            yield return new WaitUntil(() => llmQueryResponse != "");
+
+            StructuredOutput res = StructuredResponseFormatter.ExtractMessageAndFunctionCall(llmQueryResponse);
+
+            if (ListeningIndicator != null && ThinkingIndicator != null)
+            {
+                ListeningIndicator.SetActive(false);
+                ThinkingIndicator.SetActive(false);
+            }
+
+            if (res.actionFunction != null && res.actionFunction != "none")
+            {
+                PerformAction(res.actionFunction);
+            }
+            if (res.emotionFunction != null && res.emotionFunction != "none")
+            {
+                Debug.Log("expressing emotion");
+                ExpressEmotion(res.emotionFunction);
+            }
+            if (res.gazeFunction != null && res.gazeFunction != "none")
+            {
+                if (res.gazeFunction == "LookAtUser")
+                {
+                    if (player == null)
+                    {
+                        FindPlayer();
+                        eyeGazeController.playerTarget = player;
+                    }
+                    eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.LookAtPlayer;
+                }
+                if (res.gazeFunction == "LookIdly")
+                {
+                    eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.Idle;
+                }
+            }
+            if (res.textResponse != "" && res.textResponse != null)
+            {
+                Debug.Log("response text: " + res.textResponse);
+                AddToConversation(llmQueryResponse);
+                yield return cloudServiceManager.TTS(res.textResponse, agentAudioSource, TTSService);
+            }
+
+            res = null;
+            llmQueryResponse = "";
+        }
+
         #endregion
     }
 }

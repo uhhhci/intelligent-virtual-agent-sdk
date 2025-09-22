@@ -98,6 +98,11 @@ namespace IVH.Core.IntelligentVirtualAgent
         // UI indicator
         [HideInInspector] public GameObject ListeningIndicator;
         [HideInInspector] public GameObject ThinkingIndicator;
+        
+        [Header("Instant Actor")]
+        [Tooltip("This text will mostly be used by the 'QuickSpeech' function for an LLM to quickly create a TTS response without going into the interaction loop. ")]
+        public string SimpleText = "";
+
         protected virtual void Awake()
         {
             if (cloudServiceManagerInstance != null)
@@ -112,7 +117,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             //Debug.Log(systemPrompt);
             animator = agentInstance.GetComponent<Animator>();
 
-            if (animator==null)
+            if (animator == null)
             {
                 animator = agentInstance.GetComponentInChildren<Animator>();
             }

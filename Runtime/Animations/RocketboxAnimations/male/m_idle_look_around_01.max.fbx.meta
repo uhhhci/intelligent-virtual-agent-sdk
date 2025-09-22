@@ -33,7 +33,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: m_idle_look_around_01
+      name: midlelookaround01
       takeName: Take 001
       internalID: 1827226128182048838
       firstFrame: 0

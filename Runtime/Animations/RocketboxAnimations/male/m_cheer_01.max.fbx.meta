@@ -33,7 +33,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: m_cheer_01
+      name: mcheer01
       takeName: Take 001
       internalID: 1827226128182048838
       firstFrame: 0
