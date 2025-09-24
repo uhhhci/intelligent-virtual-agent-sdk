@@ -43,7 +43,7 @@ See [here](https://www.youtube.com/watch?v=RDT30Evpmic&feature=youtu.be) for ful
 ### Requirements
 * Unity 2022.3 LTS, Universal Render Pipeline (URP)
 *  ``iva-server`` [node.js REST server for communicating with LLM/STT/STT cloud services](https://github.com/uhhhci/iva-server) 
-* ``intelligent-virtual-agent-examples`` [unity example project](https://github.com/uhhhci/intelligent-virtual-agent-sdk-examples)
+*  (``intelligent-virtual-agent-examples`` [unity example project](https://github.com/uhhhci/intelligent-virtual-agent-sdk-examples)) - not needed to run the SDK but provides a good starting point if you want to explore the SDK.
 
 ### Dependencies
 * [com.unity.animation.rigging (1.2.1)](https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.2/manual/index.html) (Add package by name)
@@ -105,7 +105,6 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
     ##### **Option N**
     Clone this repository to a folder of your preference. In the Unity Package Manager select `Add package from disk...`, navigate to your installation folder and select the `package.json` file.
 
-    For further information see also the [Installation wiki page](https://git.informatik.uni-hamburg.de/presence/internal/ivh-sdk/packages/ivh-sdk-core/-/wikis/Documentation/Installation).
 
 4. #### Setup a scene
     ##### Services
@@ -141,7 +140,7 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
 
 For the main functions of the package you will need different API-keys. See the documentation in the [iva-server](https://github.com/uhhhci/iva-server) of how to get the API keys. 
 
-- To connect to the core services you can use the [ServiceConnector Application](https://git.informatik.uni-hamburg.de/presence/internal/ivh-sdk/applications/service-connector). In the BasicServiceTemplate in your scene you now need to set the IP to "localhost" the UHAMServerManager.
+- To connect to the core services you can use the [IVA Server](https://github.com/uhhhci/iva-server). In the BasicServiceTemplate in your scene you now need to set the IP to "localhost" the UHAMServerManager.
 
 - If you are students at Hamburg University, you can connect via the UHAM hosted server, please contact your supervisor/admin for the IP adress. In the BasicServiceTemplate in your scene you can add this IP to the BasicServerManager.
 
