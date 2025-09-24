@@ -4,7 +4,8 @@
 <img src="./Documentations/images/Teaser.png" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
-The package contains the Intelligent Virtual Human SDK developed by the [human computer interaction group](https://www.inf.uni-hamburg.de/en/inst/ab/hci.html) at Hamburg University.
+The package contains the Intelligent Virtual Human SDK developed by the [human computer interaction group](https://www.inf.uni-hamburg.de/en/inst/ab/hci.html) at Hamburg University. Please note that the usage of the SDK requires ethical & responsible use. Details can be found [here](.\LICENSE.md).
+
 
 ##  Demo
 
