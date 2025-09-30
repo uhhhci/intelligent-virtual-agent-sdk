@@ -46,12 +46,16 @@ See [here](https://www.youtube.com/watch?v=RDT30Evpmic&feature=youtu.be) for ful
 *  (``intelligent-virtual-agent-examples`` [unity example project](https://github.com/uhhhci/intelligent-virtual-agent-sdk-examples)) - not needed to run the SDK but provides a good starting point if you want to explore the SDK.
 
 ### Dependencies
+#### Automatically Installed
 * [com.unity.animation.rigging (1.2.1)](https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.2/manual/index.html) (Add package by name)
 * [com.unity.nuget.newtonsoft-json (3.2.1)](https://docs.unity3d.com/Packages/com.unity.nuget.newtonsoft-json@3.2/manual/index.html) (Add package by name)
+
+#### You Need To Import These Manually
+* [com.meta.xr.sdk.interaction.ovr (69.0.1)](https://assetstore.unity.com/packages/tools/integration/meta-xr-interaction-sdk-265014) (Add by name: `com.meta.xr.sdk.interaction.ovr`)
 * [com.oculus.unity.integration.lip-sync (29.0.0)](https://openupm.com/packages/com.oculus.unity.integration.lip-sync/) (Add from git URL: `https://github.com/Trisgram/com.oculus.unity.integration.lip-sync.git`)
 * [com.gpt4all.unity](https://github.com/Macoron/gpt4all.unity) (Add package from git URL: `https://github.com/Macoron/gpt4all.unity.git?path=/Packages/com.gpt4all.unity`)
 * [com.whisper.unity](https://github.com/Macoron/whisper.unity) (Add from git URL: `https://github.com/Macoron/whisper.unity.git?path=/Packages/com.whisper.unity`)
-* [com.meta.movement](https://github.com/oculus-samples/Unity-Movement.git) (Add from git URL: `https://github.com/oculus-samples/Unity-Movement.git`)
+* [com.meta.movement](https://github.com/oculus-samples/Unity-Movement.git) (Add from git URL: `https://github.com/oculus-samples/Unity-Movement.git#v69.0.0`) - you need to import `com.meta.xr.sdk.interaction.ovr` first
 
 ### Main features
 
@@ -89,7 +93,7 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
     Select or create a Unity project to use the package in. (Unity 2022.3 LTS)
 
 2. #### Install dependencies
-    Install the dependencies via the Unity Package Manager (you only need to manually add the dependencies that are added via git URL). Other dependencies will be installed automatically.
+    Install the dependencies via the Unity Package Manager.
 
 
 2. #### Import IVH SDK Core Package 
