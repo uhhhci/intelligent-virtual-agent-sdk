@@ -90,12 +90,14 @@ namespace IVH.Core.ServiceConnector
                     {
                         final_result(result.alternatives[0].transcript);
                         final = true;
+                        microphoneManager.userCanTalk = false;
                     }
                 }
 
                 websocketService.transcriptionListeners.Add(STT_Callbacks);
 
                 Debug.Log("Listening SST");
+                microphoneManager.userCanTalk = true;
                 yield return new WaitUntil(() => final);
                 websocketService.transcriptionListeners.Remove(STT_Callbacks);
                 Debug.Log("Stopped SST");

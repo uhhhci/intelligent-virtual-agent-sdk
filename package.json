@@ -1,6 +1,6 @@
 {
   "name": "de.uhh.hci.ivh.core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Intelligent Virtual Human SDK Core",
   "description": "Core package of Intelligent Virtual Human SDK",
   "unity": "2022.3",

@@ -1,5 +1,7 @@
 # Intelligent Virtual Human SDK Core
 All notable changes to this package are documented in this file.
+## 1.0.1
+- hotfix mic UI in conversation with agent
 
 ## 1.0.0
 - rocketbox full integration
