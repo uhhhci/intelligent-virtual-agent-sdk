@@ -15,8 +15,10 @@ namespace IVH.Core.ServiceConnector
         [Header("For Desktop")]
         [Tooltip("Should display GUI on Desktop")]
         public bool ShowGUI = true;
+        [HideInInspector] public bool userCanTalk = false;
         [HideInInspector] public AudioClip recording;
         private const int BUFFER_SECONDS = 2; // Use a slightly longer buffer
+
 
         void Start()
         {
@@ -92,19 +94,20 @@ namespace IVH.Core.ServiceConnector
                 GUILayout.EndVertical();
             }
 
-            if (IsRecording)
+            if (userCanTalk)
             {
-                GUI.color = Color.red;
-                GUI.Label(new Rect(10, 30, 500, 100), "Microphone is on.");
+                GUI.color = Color.green;
+                GUI.Label(new Rect(10, 30, 500, 100), "Mic is recording.");
 
-                if (GUI.Button(new Rect(10, Screen.height - 110, 100, 100), "Mic off"))
+                if (GUI.Button(new Rect(10, Screen.height - 110, 100, 100), "Turn Mic off"))
                 {
                     StopAllRecordings();
                 }
             }
-            else
+            else if(!userCanTalk)
             {
-                GUI.color = Color.green;
+                GUI.color = Color.red;
+                GUI.Label(new Rect(10, 30, 500, 100), "Mic is not recording.");
             }
         }
 
