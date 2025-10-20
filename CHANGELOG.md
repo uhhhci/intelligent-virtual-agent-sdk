@@ -1,5 +1,8 @@
 # Intelligent Virtual Human SDK Core
 All notable changes to this package are documented in this file.
+## 1.0.2
+- add more language options to azure TTS.
+
 ## 1.0.1
 - hotfix mic UI in conversation with agent
 

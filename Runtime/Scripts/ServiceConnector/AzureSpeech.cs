@@ -30,6 +30,19 @@ namespace IVH.Core.ServiceConnector
         ENUS_Jenny_Calm,
         ENUS_Guy_Newscast,
 
+        // Catalan (Spain)
+        CAES_Joana_Female,
+        CAES_Enric_Male,
+        CAES_Alba_Female,
+
+        // Spanish (Spain)
+        ESES_Elvira_Female,
+        ESES_Alvaro_Male,
+        ESES_ArabellaMultilingual_Female,
+        ESES_IsidoraMultilingual_Female,
+        ESES_TristanMultilingual_Male,
+        ESES_XimenaMultilingual_Female,
+
         // German (Germany)
         DEDE_Katja_Neutral,
         DEDE_Seraphina_Female,
@@ -69,6 +82,7 @@ namespace IVH.Core.ServiceConnector
                 AzureVoiceType.ZHCN_Xiaoxiao_Storytelling => "zh-CN-XiaoxiaoNeural",
                 AzureVoiceType.ZHCN_Yunxi_Calm => "zh-CN-YunxiNeural",
 
+
                 // English
                 AzureVoiceType.ENUS_Aria_Neutral => "en-US-AriaNeural",
                 AzureVoiceType.ENUS_Jenny_Female => "en-US-JennyNeural",
@@ -85,6 +99,20 @@ namespace IVH.Core.ServiceConnector
                 AzureVoiceType.DEDE_Amala_Professional => "de-DE-AmalaNeural",
                 AzureVoiceType.DEDE_Katja_Storytelling => "de-DE-KatjaNeural",
                 AzureVoiceType.DEDE_Florian_Calm => "de-DE-FlorianNeural",
+
+                // Spanish
+                // Catalan (Spain)
+                AzureVoiceType.CAES_Joana_Female => "ca-ES-JoanaNeural",
+                AzureVoiceType.CAES_Enric_Male => "ca-ES-EnricNeural",
+                AzureVoiceType.CAES_Alba_Female => "ca-ES-AlbaNeural",
+
+                // Spanish (Spain)
+                AzureVoiceType.ESES_Elvira_Female => "es-ES-ElviraNeural",
+                AzureVoiceType.ESES_Alvaro_Male => "es-ES-AlvaroNeural",
+                AzureVoiceType.ESES_ArabellaMultilingual_Female => "es-ES-ArabellaMultilingualNeural4",
+                AzureVoiceType.ESES_IsidoraMultilingual_Female => "es-ES-IsidoraMultilingualNeural4",
+                AzureVoiceType.ESES_TristanMultilingual_Male => "es-ES-TristanMultilingualNeural4",
+                AzureVoiceType.ESES_XimenaMultilingual_Female => "es-ES-XimenaMultilingualNeural4",
 
                 // French
                 AzureVoiceType.FRFR_Denise_Neutral => "fr-FR-DeniseNeural",
