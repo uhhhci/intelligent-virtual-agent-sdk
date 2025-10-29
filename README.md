@@ -164,9 +164,9 @@ If you are testing with the following cloud service, you should enter your API k
 
 ## Documentation
 
-- <b>component-wise documentations</b> : COMING SOON!
+- For the full Documentation, visit the [Wiki](https://github.com/uhhhci/intelligent-virtual-agent-sdk/wiki).
 - [How to add more/custom animations to IVA actions](./Documentations/howToAddMoreAnimations.md)
-- [How to develop the package while using it  in Unity](./Documentations/howToDevelopPackage.md)
+- [How to develop the package while using it  in Unity](https://github.com/uhhhci/intelligent-virtual-agent-sdk/wiki/Development).
 
 ## [DIDIMO](https://www.didimo.co/) Character License Notice
 
