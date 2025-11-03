@@ -93,6 +93,7 @@ namespace IVH.Core.Actions
             );
         }
     }
+#if DE_UHH_HCI_IVH_CCINTERNAL
     // The following animations are only supported in CC4 characters with the Digital Soul 100+ library purchase
     #region positive
 
@@ -516,7 +517,7 @@ namespace IVH.Core.Actions
     }
 
     #endregion
-
+#endif
     public static class AgentFacialAnimations
     {
         public static List<AgentFacialAnimation> GetAvailableActions()
