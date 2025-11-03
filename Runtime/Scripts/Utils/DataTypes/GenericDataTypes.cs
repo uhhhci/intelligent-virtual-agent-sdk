@@ -20,6 +20,11 @@ public enum CharacterType
     CC4OrDIDIMO,
     Rocketbox
 }
+public enum BodyAnimationControllerType
+{
+    Rocketbox,
+    Mixamo
+}
 public enum BodyActionFilter
 {
     NONE,

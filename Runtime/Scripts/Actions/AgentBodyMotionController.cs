@@ -1,3 +1,4 @@
+using System.Net;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -64,11 +65,11 @@ namespace IVH.Core.Actions{
             return tools;
         }
 
-    public List<GPTToolItem> GetDetailActionsFiltered(BodyActionFilter actionFilter, Gender gender = Gender.Nonbinary)
+    public List<GPTToolItem> GetDetailActionsFiltered(BodyActionFilter actionFilter, Gender gender = Gender.Nonbinary, BodyAnimationControllerType bodyAnimationType = BodyAnimationControllerType.Rocketbox)
     {
         // Use LINQ for a more concise and readable implementation
         IEnumerable<AgentAction> filteredActions = avaliableActions.AsEnumerable();
-
+        
         // First, filter by the BodyActionFilter
         if (actionFilter != BodyActionFilter.NONE)
         {
@@ -78,20 +79,33 @@ namespace IVH.Core.Actions{
                 (action.Categories.Contains(filterTag) || action.Categories.Contains("Neutral")));
         }
 
-        // Second, filter by Gender
-        if (gender == Gender.Female)
-        {
-            filteredActions = filteredActions.Where(action =>
-                action.Categories != null &&
-                action.Categories.Contains("Female"));
-        }
-        else if (gender == Gender.Male)
-        {
-            filteredActions = filteredActions.Where(action =>
-                action.Categories != null &&
-                action.Categories.Contains("Male"));
-        }
-        // If gender is Nonbinary, no additional gender filter is needed, as all animations (Male, Female, and those without a gender tag) are valid.
+            // Second, filter by Gender
+            if (gender == Gender.Female)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    (action.Categories.Contains("Female") || action.Categories.Contains("GenderNeutral")));
+            }
+            else if (gender == Gender.Male)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    (action.Categories.Contains("Male") || action.Categories.Contains("GenderNeutral")));
+            }
+        
+            // third, filter by animation type (e.g. rocketbox vs. mixamo)
+            if (bodyAnimationType == BodyAnimationControllerType.Rocketbox)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    action.Categories.Contains("Rocketbox"));
+            }
+            else if (bodyAnimationType == BodyAnimationControllerType.Mixamo)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    action.Categories.Contains("Mixamo"));
+            }
 
         // Finally, select and transform the filtered actions into GPTToolItems
         return filteredActions.Select(action => action.ToGPTToolItem()).ToList();
@@ -107,12 +121,11 @@ namespace IVH.Core.Actions{
             return toolNames;
         }
 
-        public List<string> GetSimpleActionNameFiltered(BodyActionFilter actionFilter, Gender gender = Gender.Nonbinary)
+        public List<string> GetSimpleActionNameFiltered(BodyActionFilter actionFilter, Gender gender = Gender.Nonbinary, BodyAnimationControllerType bodyAnimationType = BodyAnimationControllerType.Rocketbox )
         {
             // Use LINQ for a more concise and readable implementation
             IEnumerable<AgentAction> filteredActions = avaliableActions.AsEnumerable();
 
-            // First, filter by the BodyActionFilter
             if (actionFilter != BodyActionFilter.NONE)
             {
                 string filterTag = actionFilter.ToString();
@@ -126,16 +139,29 @@ namespace IVH.Core.Actions{
             {
                 filteredActions = filteredActions.Where(action =>
                     action.Categories != null &&
-                    action.Categories.Contains("Female"));
+                    (action.Categories.Contains("Female")|| action.Categories.Contains("GenderNeutral")));
             }
             else if (gender == Gender.Male)
             {
                 filteredActions = filteredActions.Where(action =>
                     action.Categories != null &&
-                    action.Categories.Contains("Male"));
+                    (action.Categories.Contains("Male") || action.Categories.Contains("GenderNeutral")));
             }
             // If gender is Nonbinary, no additional gender filter is needed, as all animations (Male, Female, and those without a gender tag) are valid.
 
+            // third, filter by animation type (e.g. rocketbox vs. mixamo)
+            if (bodyAnimationType == BodyAnimationControllerType.Rocketbox)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    action.Categories.Contains("Rocketbox"));
+            }
+            else if (bodyAnimationType == BodyAnimationControllerType.Mixamo)
+            {
+                filteredActions = filteredActions.Where(action =>
+                    action.Categories != null &&
+                    action.Categories.Contains("Mixamo"));
+            }
             // Finally, select the names from the filtered list
             return filteredActions.Select(action => action.Name).ToList();
         }

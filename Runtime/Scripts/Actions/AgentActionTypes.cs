@@ -50,365 +50,367 @@ namespace IVH.Core.Actions{
         }
     }
 
+#if DE_UHH_HCI_IVH_ASSETS_MIXAMO
     // currently disabled due to restriction of redistribution, please contact the developer team if you want to use these actions in your academic researc
     #region mixamo animations 
-    // public class GreetWithQuickBow : AgentAction
-    // {
-    //     public GreetWithQuickBow() : base(
-    //         typeof(GreetWithQuickBow).Name,
-    //         "An agent quickly bows to a person. This gesture is used in appropriate social and conversational contexts. " +
-    //         "For example, people from East Asian cultures like Japan, China, and Korea often bow to greet others, say goodbye, or apologize.",
-    //         new List<string> { "Mixamo", "Neutral", "Greet", "Respect", "Cultural Gesture", "Formal" })
-    //     { }
-    // }
+    public class GreetWithQuickBow : AgentAction
+    {
+        public GreetWithQuickBow() : base(
+            typeof(GreetWithQuickBow).Name,
+            "An agent quickly bows to a person. This gesture is used in appropriate social and conversational contexts. " +
+            "For example, people from East Asian cultures like Japan, China, and Korea often bow to greet others, say goodbye, or apologize.",
+            new List<string> { "Mixamo", "Neutral", "Greet", "Respect", "Cultural Gesture", "Formal", "GenderNeutral" })
+        { }
+    }
 
-    // public class HelloWithRaiseHand : AgentAction
-    // {
-    //     public HelloWithRaiseHand() : base(
-    //         typeof(HelloWithRaiseHand).Name,
-    //         "An agent greets others by raising and waving their right hand while lifting their head, only use when first meeting someone.",
-    //         new List<string> { "Mixamo", "Neutral",  "Hand Gesture" })
-    //     { }
-    // }
+    public class HelloWithRaiseHand : AgentAction
+    {
+        public HelloWithRaiseHand() : base(
+            typeof(HelloWithRaiseHand).Name,
+            "An agent greets others by raising and waving their right hand while lifting their head, only use when first meeting someone.",
+            new List<string> { "Mixamo", "Neutral",  "Hand Gesture","GenderNeutral" })
+        { }
+    }
 
-    // public class HappyLittleDance : AgentAction
-    // {
-    //     public HappyLittleDance() : base(
-    //         typeof(HappyLittleDance).Name,
-    //         "An agent expresses happiness by performing a small dance, swinging their body and hands.",
-    //         new List<string> { "Mixamo", "Positive" })
-    //     { }
-    // }
+    public class HappyLittleDance : AgentAction
+    {
+        public HappyLittleDance() : base(
+            typeof(HappyLittleDance).Name,
+            "An agent expresses happiness by performing a small dance, swinging their body and hands.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class ExcitedLittleDance : AgentAction
-    // {
-    //     public ExcitedLittleDance() : base(
-    //         typeof(ExcitedLittleDance).Name,
-    //         "An agent shows excitement by jumping around and moving their hands.",
-    //         new List<string> { "Mixamo", "Positive", "Energetic" })
-    //     { }
-    // }
+    public class ExcitedLittleDance : AgentAction
+    {
+        public ExcitedLittleDance() : base(
+            typeof(ExcitedLittleDance).Name,
+            "An agent shows excitement by jumping around and moving their hands.",
+            new List<string> { "Mixamo", "Positive", "Energetic","GenderNeutral" })
+        { }
+    }
 
-    // public class ExpressRejection : AgentAction
-    // {
-    //     public ExpressRejection() : base(
-    //         typeof(ExpressRejection).Name,
-    //         "An agent expresses feeling rejected by lowering their head and upper body.",
-    //         new List<string> { "Mixamo", "Neutral", "Sad"})
-    //     { }
-    // }
+    public class ExpressRejection : AgentAction
+    {
+        public ExpressRejection() : base(
+            typeof(ExpressRejection).Name,
+            "An agent expresses feeling rejected by lowering their head and upper body.",
+            new List<string> { "Mixamo", "Neutral", "Sad","GenderNeutral"})
+        { }
+    }
 
-    // public class ExpressThankfulness : AgentAction
-    // {
-    //     public ExpressThankfulness() : base(
-    //         typeof(ExpressThankfulness).Name,
-    //         "An agent expresses gratitude by placing one hand on their chest and bowing slightly in a shy manner.",
-    //         new List<string> { "Mixamo",  "Positive" })
-    //     { }
-    // }
+    public class ExpressThankfulness : AgentAction
+    {
+        public ExpressThankfulness() : base(
+            typeof(ExpressThankfulness).Name,
+            "An agent expresses gratitude by placing one hand on their chest and bowing slightly in a shy manner.",
+            new List<string> { "Mixamo",  "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class Clapping : AgentAction
-    // {
-    //     public Clapping() : base(
-    //         typeof(Clapping).Name,
-    //         "An agent claps their hands three times to show appreciation or celebration.",
-    //         new List<string> { "Mixamo", "Positive" })
-    //     { }
-    // }
+    public class Clapping : AgentAction
+    {
+        public Clapping() : base(
+            typeof(Clapping).Name,
+            "An agent claps their hands three times to show appreciation or celebration.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class AskingAQuestion : AgentAction
-    // {
-    //     public AskingAQuestion() : base(
-    //         typeof(AskingAQuestion).Name,
-    //         "An agent asks a question by using a hand gesture.",
-    //         new List<string> { "Mixamo",  "Neutral" })
-    //     { }
-    // }
+    public class AskingAQuestion : AgentAction
+    {
+        public AskingAQuestion() : base(
+            typeof(AskingAQuestion).Name,
+            "An agent asks a question by using a hand gesture.",
+            new List<string> { "Mixamo",  "Neutral","GenderNeutral" })
+        { }
+    }
 
-    // public class TalkingSomethingFunny : AgentAction
-    // {
-    //     public TalkingSomethingFunny() : base(
-    //         typeof(TalkingSomethingFunny).Name,
-    //         "An agent introduces something humorous to lighten the conversation.",
-    //         new List<string> { "Mixamo",  "Positive" })
-    //     { }
-    // }
+    public class TalkingSomethingFunny : AgentAction
+    {
+        public TalkingSomethingFunny() : base(
+            typeof(TalkingSomethingFunny).Name,
+            "An agent introduces something humorous to lighten the conversation.",
+            new List<string> { "Mixamo",  "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class TellingASecret : AgentAction
-    // {
-    //     public TellingASecret() : base(
-    //         typeof(TellingASecret).Name,
-    //         "An agent gestures as if they are telling a secret in a confidential manner.",
-    //         new List<string> { "Mixamo",  "Neutral" })
-    //     { }
-    // }
+    public class TellingASecret : AgentAction
+    {
+        public TellingASecret() : base(
+            typeof(TellingASecret).Name,
+            "An agent gestures as if they are telling a secret in a confidential manner.",
+            new List<string> { "Mixamo",  "Neutral","GenderNeutral" })
+        { }
+    }
 
-    // public class Yelling : AgentAction
-    // {
-    //     public Yelling() : base(
-    //          typeof(Yelling).Name,
-    //         "An agent yelling, showing that they are angry in an argument.",
-    //         new List<string> { "Mixamo","Negative" })
-    //     { }
-    // }
+    public class Yelling : AgentAction
+    {
+        public Yelling() : base(
+             typeof(Yelling).Name,
+            "An agent yelling, showing that they are angry in an argument.",
+            new List<string> { "Mixamo","Negative","GenderNeutral" })
+        { }
+    }
 
-    // public class AnnoyedHeadShake : AgentAction
-    // {
-    //     public AnnoyedHeadShake() : base(
-    //          typeof(AnnoyedHeadShake).Name,
-    //         "An agent shakes their head to express that they feel annoyed.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
-    // public class ShakingHeadNo : AgentAction
-    // {
-    //     public ShakingHeadNo() : base(
-    //          typeof(ShakingHeadNo).Name,
-    //         "An agent shakes their head to express disagreement or disbelief.",
-    //         new List<string> { "Mixamo",  "Negative" })
-    //     { }
-    // }
+    public class AnnoyedHeadShake : AgentAction
+    {
+        public AnnoyedHeadShake() : base(
+             typeof(AnnoyedHeadShake).Name,
+            "An agent shakes their head to express that they feel annoyed.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
+    public class ShakingHeadNo : AgentAction
+    {
+        public ShakingHeadNo() : base(
+             typeof(ShakingHeadNo).Name,
+            "An agent shakes their head to express disagreement or disbelief.",
+            new List<string> { "Mixamo",  "Negative","GenderNeutral" })
+        { }
+    }
 
-    // public class HeadNodYes : AgentAction
-    // {
-    //     public HeadNodYes() : base(
-    //          typeof(HeadNodYes).Name,
-    //         "An agent nods their head as a simple yes when answering questions or agreeing.",
-    //         new List<string> { "Mixamo", "Positive" })
-    //     { }
-    // }
+    public class HeadNodYes : AgentAction
+    {
+        public HeadNodYes() : base(
+             typeof(HeadNodYes).Name,
+            "An agent nods their head as a simple yes when answering questions or agreeing.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class SarcasticHeadNod : AgentAction
-    // {
-    //     public SarcasticHeadNod() : base(
-    //          typeof(SarcasticHeadNod).Name,
-    //         "An agent nods their head when they agree with something sarcastically.",
-    //         new List<string> { "Mixamo",  "Neutral" })
-    //     { }
-    // }
+    public class SarcasticHeadNod : AgentAction
+    {
+        public SarcasticHeadNod() : base(
+             typeof(SarcasticHeadNod).Name,
+            "An agent nods their head when they agree with something sarcastically.",
+            new List<string> { "Mixamo",  "Neutral","GenderNeutral" })
+        { }
+    }
 
-    // public class HardHeadNod : AgentAction
-    // {
-    //     public HardHeadNod() : base(
-    //          typeof(HardHeadNod).Name,
-    //         "An agent does a hard head nod, expressing strong agreement with something.",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class HardHeadNod : AgentAction
+    {
+        public HardHeadNod() : base(
+             typeof(HardHeadNod).Name,
+            "An agent does a hard head nod, expressing strong agreement with something.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
-    // public class LengthyHeadNod : AgentAction
-    // {
-    //     public LengthyHeadNod() : base(
-    //          typeof(LengthyHeadNod).Name,
-    //         "An agent nods their head in a lengthier way compared to a simple yes nod.",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class LengthyHeadNod : AgentAction
+    {
+        public LengthyHeadNod() : base(
+             typeof(LengthyHeadNod).Name,
+            "An agent nods their head in a lengthier way compared to a simple yes nod.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
-    // public class ThoughtfulHeadNod : AgentAction
-    // {
-    //     public ThoughtfulHeadNod() : base(
-    //          typeof(ThoughtfulHeadNod).Name,
-    //         "An agent nods their head thoughtfully, indicating deep thinking.",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class ThoughtfulHeadNod : AgentAction
+    {
+        public ThoughtfulHeadNod() : base(
+             typeof(ThoughtfulHeadNod).Name,
+            "An agent nods their head thoughtfully, indicating deep thinking.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
 
     
-    // public class LookingBehind : AgentAction
-    // {
-    //     public LookingBehind() : base(
-    //         typeof(LookingBehind).Name,
-    //         "An agent turn its head and look behind ",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class LookingBehind : AgentAction
+    {
+        public LookingBehind() : base(
+            typeof(LookingBehind).Name,
+            "An agent turn its head and look behind ",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
 
-    // public class AgreeingWithHands : AgentAction
-    // {
-    //     public AgreeingWithHands() : base(
-    //         typeof(AgreeingWithHands).Name,
-    //         "An agent move two hands to show aggrement, although seems like in a situation when the agent runs out of argument and has to agree on something.",
-    //         new List<string> { "Mixamo", "Positive" })
-    //     { }
-    // }
+    public class AgreeingWithHands : AgentAction
+    {
+        public AgreeingWithHands() : base(
+            typeof(AgreeingWithHands).Name,
+            "An agent move two hands to show aggrement, although seems like in a situation when the agent runs out of argument and has to agree on something.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral" })
+        { }
+    }
 
-    // public class Angry : AgentAction
-    // {
-    //     public Angry() : base(
-    //         typeof(Angry).Name,
-    //         "An agent expresses anger by crosing their arms",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class Angry : AgentAction
+    {
+        public Angry() : base(
+            typeof(Angry).Name,
+            "An agent expresses anger by crosing their arms",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
-    // public class AngryPointing : AgentAction
-    // {
-    //     public AngryPointing() : base(
-    //         typeof(AngryPointing).Name,
-    //         "An agent points aggressively while angry. Use in arguments or confrontational situations.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
-
-
-    // public class Bashful : AgentAction
-    // {
-    //     public Bashful() : base(
-    //         typeof(Bashful).Name,
-    //         "An agent displays shyness or embarrassment by looking slightly down.",
-    //         new List<string> { "Mixamo", "Neutral"})
-    //     { }
-    // }
-
-    // public class CrazyGesture : AgentAction
-    // {
-    //     public CrazyGesture() : base(
-    //         typeof(CrazyGesture).Name,
-    //         "An agent wave hands around its' head, a gesture expressing something like: are you crazy?",
-    //         new List<string> { "Mixamo", "Negative"})
-    //     { }
-    // }
+    public class AngryPointing : AgentAction
+    {
+        public AngryPointing() : base(
+            typeof(AngryPointing).Name,
+            "An agent points aggressively while angry. Use in arguments or confrontational situations.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
 
-    // public class Defeat : AgentAction
-    // {
-    //     public Defeat() : base(
-    //         typeof(Defeat).Name,
-    //         "An agent reacts to losing or failing in a sad way by covering their face with hands",
-    //         new List<string> { "Mixamo", "Negative"})
-    //     { }
-    // }
+    public class Bashful : AgentAction
+    {
+        public Bashful() : base(
+            typeof(Bashful).Name,
+            "An agent displays shyness or embarrassment by looking slightly down.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral"})
+        { }
+    }
 
-    // public class Defeated : AgentAction
-    // {
-    //     public Defeated() : base(
-    //         typeof(Defeated).Name,
-    //         "An agent shows defeat in a frustrated ways by steping their feet and head looking down",
-    //         new List<string> { "Mixamo", "Negative"})
-    //     { }
-    // }
-
-    // public class Disappointed : AgentAction
-    // {
-    //     public Disappointed() : base(
-    //         typeof(Disappointed).Name,
-    //         "An agent expresses disappointment by waving their hand and looking down.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class CrazyGesture : AgentAction
+    {
+        public CrazyGesture() : base(
+            typeof(CrazyGesture).Name,
+            "An agent wave hands around its' head, a gesture expressing something like: are you crazy?",
+            new List<string> { "Mixamo", "Negative","GenderNeutral"})
+        { }
+    }
 
 
-    // public class SurpriseReacting : AgentAction
-    // {
-    //     public SurpriseReacting() : base(
-    //         typeof(SurpriseReacting).Name,
-    //         "An agent expresses surprise by sudden reaction with a little jump.",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class Defeat : AgentAction
+    {
+        public Defeat() : base(
+            typeof(Defeat).Name,
+            "An agent reacts to losing or failing in a sad way by covering their face with hands",
+            new List<string> { "Mixamo", "Negative","GenderNeutral"})
+        { }
+    }
+
+    public class Defeated : AgentAction
+    {
+        public Defeated() : base(
+            typeof(Defeated).Name,
+            "An agent shows defeat in a frustrated ways by steping their feet and head looking down",
+            new List<string> { "Mixamo", "Negative","GenderNeutral"})
+        { }
+    }
+
+    public class Disappointed : AgentAction
+    {
+        public Disappointed() : base(
+            typeof(Disappointed).Name,
+            "An agent expresses disappointment by waving their hand and looking down.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
 
-    // public class FistPump : AgentAction
-    // {
-    //     public FistPump() : base(
-    //         typeof(FistPump).Name,
-    //         "An agent raises a fist in excitement or celebration. Use to express success or enthusiasm.",
-    //         new List<string> { "Mixamo", "Positive"})
-    //     { }
-    // }
-
-    // public class HandOneRaisingHigh : AgentAction
-    // {
-    //     public HandOneRaisingHigh() : base(
-    //         typeof(HandOneRaisingHigh).Name,
-    //         "An agent raises one hand high above its hand. Use to signal attention, volunteering, or asking a question.",
-    //         new List<string> { "Mixamo", "Neutral"})
-    //     { }
-    // }
+    public class SurpriseReacting : AgentAction
+    {
+        public SurpriseReacting() : base(
+            typeof(SurpriseReacting).Name,
+            "An agent expresses surprise by sudden reaction with a little jump.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
 
-    // public class Laughing : AgentAction
-    // {
-    //     public Laughing() : base(
-    //         typeof(Laughing).Name,
-    //         "An agent laughs joyfully. Use in humorous or lighthearted situations.",
-    //         new List<string> { "Mixamo", "Positive" })
-    //     { }
-    // }
+    public class FistPump : AgentAction
+    {
+        public FistPump() : base(
+            typeof(FistPump).Name,
+            "An agent raises a fist in excitement or celebration. Use to express success or enthusiasm.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral"})
+        { }
+    }
 
-    // public class Arguing : AgentAction
-    // {
-    //     public Arguing() : base(
-    //          typeof(Arguing).Name,
-    //         "Agent showing arguing gesture in a normal conversation",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class HandOneRaisingHigh : AgentAction
+    {
+        public HandOneRaisingHigh() : base(
+            typeof(HandOneRaisingHigh).Name,
+            "An agent raises one hand high above its hand. Use to signal attention, volunteering, or asking a question.",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral"})
+        { }
+    }
 
 
-    // public class StandingArguing : AgentAction
-    // {
-    //     public StandingArguing() : base(
-    //          typeof(StandingArguing).Name,
-    //         "Agent arguing extensively in an intense conversation",
-    //         new List<string> { "Mixamo", "Neutral" })
-    //     { }
-    // }
+    public class Laughing : AgentAction
+    {
+        public Laughing() : base(
+            typeof(Laughing).Name,
+            "An agent laughs joyfully. Use in humorous or lighthearted situations.",
+            new List<string> { "Mixamo", "Positive","GenderNeutral" })
+        { }
+    }
+
+    public class Arguing : AgentAction
+    {
+        public Arguing() : base(
+             typeof(Arguing).Name,
+            "Agent showing arguing gesture in a normal conversation",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
+
+
+    public class StandingArguing : AgentAction
+    {
+        public StandingArguing() : base(
+             typeof(StandingArguing).Name,
+            "Agent arguing extensively in an intense conversation",
+            new List<string> { "Mixamo", "Neutral","GenderNeutral" })
+        { }
+    }
 
     
-    // public class Whatever : AgentAction
-    // {
-    //     public Whatever() : base(
-    //          typeof(Whatever).Name,
-    //         "Agent step back and put hands up, showing an whatever atitute",
-    //         new List<string> { "Mixamo", "NegativeF" })
-    //     { }
-    // }
+    public class Whatever : AgentAction
+    {
+        public Whatever() : base(
+             typeof(Whatever).Name,
+            "Agent step back and put hands up, showing an whatever attitude",
+            new List<string> { "Mixamo", "NegativeF","GenderNeutral" })
+        { }
+    }
 
 
-    // public class BeingCocky : AgentAction
-    // {
-    //     public BeingCocky() : base(
-    //         typeof(BeingCocky).Name,
-    //         "An agent acts with arrogance or overconfidence. Use to portray an egoistic attitude.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class BeingCocky : AgentAction
+    {
+        public BeingCocky() : base(
+            typeof(BeingCocky).Name,
+            "An agent acts with arrogance or overconfidence. Use to portray an egoistic attitude.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
-    // public class AngryGesture : AgentAction
-    // {
-    //     public AngryGesture() : base(
-    //         typeof(AngryGesture).Name,
-    //         "An agent makes an exaggerated angry gesture. Use to reinforce anger or frustration.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class AngryGesture : AgentAction
+    {
+        public AngryGesture() : base(
+            typeof(AngryGesture).Name,
+            "An agent makes an exaggerated angry gesture. Use to reinforce anger or frustration.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
-    // public class Dismissing : AgentAction
-    // {
-    //     public Dismissing() : base(
-    //         typeof(Dismissing).Name,
-    //         "An agent dismisses something with a hand wave. Use when rejecting, ignoring, or brushing off something.",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class Dismissing : AgentAction
+    {
+        public Dismissing() : base(
+            typeof(Dismissing).Name,
+            "An agent dismisses something with a hand wave. Use when rejecting, ignoring, or brushing off something.",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
 
-    // public class YellingOut : AgentAction
-    // {
-    //     public YellingOut() : base(
-    //          typeof(YellingOut).Name,
-    //         "Yelling out gesture, with body aggressively moving forward",
-    //         new List<string> { "Mixamo", "Negative" })
-    //     { }
-    // }
+    public class YellingOut : AgentAction
+    {
+        public YellingOut() : base(
+             typeof(YellingOut).Name,
+            "Yelling out gesture, with body aggressively moving forward",
+            new List<string> { "Mixamo", "Negative","GenderNeutral" })
+        { }
+    }
 
     #endregion
-
-    #region Rocketbox Animations
+#endif
+    // avaliable by default
+    #region Rocketbox Animations 
     public class fcheer01 : AgentAction
     {
         public fcheer01() : base(

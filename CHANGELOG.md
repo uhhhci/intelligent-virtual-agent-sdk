@@ -1,5 +1,11 @@
 # Intelligent Virtual Human SDK Core
 All notable changes to this package are documented in this file.
+
+## 1.0.3
+- add scripting define symbols for internal mixamo animation pack support. 
+- add ``BodyAnimationControllerType`` to distinguish and support different type of animation controllers (e.g. mixamo vs. rocketbox)
+- apply ``Mixamo`` & ``Rocketbox`` body animation filters in ``AgentBodyMotionController``
+
 ## 1.0.2
 - add more language options to azure TTS.
 

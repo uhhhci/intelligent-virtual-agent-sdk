@@ -23,7 +23,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         public GameObject cloudServiceManagerPrefab;
         public EmotionHandlerType emotionHandlerType;
         public CharacterType characterType = CharacterType.CC4OrDIDIMO;
+        public BodyAnimationControllerType bodyAnimationControllerType = BodyAnimationControllerType.Rocketbox;
         public RuntimeAnimatorController animatorController;
+        
+        [Header("Agent Demographics")]
         //public MBTI personality; 
         public string agentName = "";
         public int age = 30;
@@ -198,14 +201,14 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             if (descriptionMode == ToolDescriptionMode.SIMPLE)
             {
-                bodyLanguageTools = JsonConvert.SerializeObject(actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender).ToArray());
+                bodyLanguageTools = JsonConvert.SerializeObject(actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType).ToArray());
                 facialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter).ToArray());
                 facsFacialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetSimpleDidimoActionName().ToArray());
             }
 
             else if (descriptionMode == ToolDescriptionMode.DETAIL)
             {
-                bodyLanguageTools = JsonConvert.SerializeObject(actionController.GetDetailActionsFiltered(bodyActionFilter, gender).ToArray());
+                bodyLanguageTools = JsonConvert.SerializeObject(actionController.GetDetailActionsFiltered(bodyActionFilter, gender, bodyAnimationControllerType).ToArray());
                 facialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetDetailFacialExpressionFiltered(facialExpressionFilter).ToArray());
                 facsFacialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetEnabledDidimoActionsAsGPTToolItems().ToArray());
             }
