@@ -89,7 +89,6 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
             // 4. Vision
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Vision Capabilities", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(visionProp);
             if (visionProp.boolValue)
             {

@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
+using IVH.Core.Utils;
 namespace IVH.Core.ServiceConnector.Gemini.Realtime
 {
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         [Header("Connection Settings")]
-        public string apiKey="AIzaSyB6AiadggPNRSVAkBjMOCttJ1W_byS9lrM";
+        private string apiKey;
         public string modelName = "gemini-2.0-flash-exp";
 
         // Events
@@ -27,10 +27,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         private ClientWebSocket _webSocket;
         private CancellationTokenSource _cancellationTokenSource;
+        
+        // Thread Safety
         private readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
-        private object _queueLock = new object();
+        private readonly object _queueLock = new object();
+        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1); // CRITICAL FIX
 
         private const string BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
+        private void Awake()
+        {
+            apiKey = GeneralModelHelper.GetGeminiApiKey();
+        }
 
         private void Update()
         {
@@ -65,6 +72,12 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             if (_webSocket != null)
             {
                 _cancellationTokenSource?.Cancel();
+                // Release any pending locks
+                if (_sendLock.CurrentCount == 0) _sendLock.Release();
+                
+                try { await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
+                catch { }
+                
                 _webSocket.Dispose();
                 _webSocket = null;
             }
@@ -107,7 +120,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                                 }
                             }
                         } 
-                    }
+                    },
+                    tool_config = new { function_calling_config = new { mode = "AUTO" } }
                 }
             };
 
@@ -121,62 +135,50 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             _ = SendJsonAsync(msg);
         }
 
-        // --- FIXED: Uses realtime_input for streaming audio ---
         public void SendAudioChunk(byte[] pcmData)
         {
             if (!IsConnected) return;
-            
-            var msg = new
-            {
-                realtime_input = new
-                {
-                    media_chunks = new[]
-                    {
-                        new
-                        {
-                            mime_type = "audio/pcm",
-                            data = Convert.ToBase64String(pcmData)
-                        }
-                    }
-                }
-            };
-            
+            // High frequency call - strictly thread safe now
+            var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "audio/pcm", data = Convert.ToBase64String(pcmData) } } } };
             _ = SendJsonAsync(msg);
         }
-        // ----------------------------------------------------
 
         public void SendImage(byte[] imageData)
         {
              if (!IsConnected) return;
-             var msg = new
-            {
-                realtime_input = new
-                {
-                    media_chunks = new[]
-                    {
-                        new
-                        {
-                            mime_type = "image/jpeg",
-                            data = Convert.ToBase64String(imageData)
-                        }
-                    }
-                }
-            };
+             var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
             _ = SendJsonAsync(msg);
         }
 
         private async Task SendToolResponse(string id)
         {
+            // Crucial: This response MUST reach the server or the agent hangs forever
             var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = "update_avatar_state", response = new { status = "ok" } } } } };
             await SendJsonAsync(msg);
         }
 
+        // --- THREAD SAFE SENDER ---
         private async Task SendJsonAsync(object data)
         {
             if (!IsConnected) return;
-            string json = JsonConvert.SerializeObject(data, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            try { await _webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Text, true, CancellationToken.None); }
-            catch(Exception ex) { Debug.LogError($"Send Error: {ex.Message}"); }
+            
+            // Wait for the lock
+            await _sendLock.WaitAsync();
+
+            try 
+            {
+                if (!IsConnected) return; // Re-check after wait
+                string json = JsonConvert.SerializeObject(data, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                await _webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Text, true, CancellationToken.None); 
+            }
+            catch(Exception ex) 
+            { 
+                Debug.LogError($"Send Error: {ex.Message}"); 
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
         private async Task ReceiveLoop()
@@ -194,11 +196,21 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                         ms.Write(buffer, 0, result.Count);
                     } while (!result.EndOfMessage);
 
-                    if (result.MessageType == WebSocketMessageType.Close) break;
+                    if (result.MessageType == WebSocketMessageType.Close) 
+                    {
+                        Debug.LogWarning($"Server Closed Connection. Status: {result.CloseStatus} / {result.CloseStatusDescription}");
+                        break;
+                    }
+
                     ProcessMessage(Encoding.UTF8.GetString(ms.ToArray()));
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex) 
+            { 
+                // Only log if it's not a deliberate cancellation
+                if(!_cancellationTokenSource.IsCancellationRequested)
+                    Debug.Log($"Receive Loop Stopped: {ex.Message}"); 
+            }
         }
 
         private void ProcessMessage(string json)
@@ -213,6 +225,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     return;
                 }
 
+                // 1. Tool Calls
                 JToken toolCall = root["toolCall"] ?? root["tool_call"];
                 if (toolCall != null)
                 {
@@ -236,9 +249,16 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     }
                 }
 
+                // 2. Content
                 JToken serverContent = root["serverContent"] ?? root["server_content"];
                 if (serverContent != null)
                 {
+                    // Handle Interruption (Clear buffer if the server says the user interrupted)
+                    if (root["serverContent"]?["interrupted"]?.Value<bool>() == true)
+                    {
+                         // Optional: You could trigger an event here to clear the Agent's audio buffer
+                    }
+
                     JToken parts = serverContent["modelTurn"]?["parts"] ?? serverContent["model_turn"]?["parts"];
                     if (parts != null)
                     {
