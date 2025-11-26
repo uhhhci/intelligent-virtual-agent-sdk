@@ -160,9 +160,9 @@ namespace IVH.Core.IntelligentVirtualAgent
             return animator;
         }
         #region agent features
-        public IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
+        public virtual IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
 
-        public async Task Listen()
+        public virtual async Task Listen()
         {
             // Await the result directly from the async STT method.
             string result = await cloudServiceManager.STT(language, STTService);
@@ -386,10 +386,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
 
-                // setup serevice manager
-                cloudServiceManagerInstance = Instantiate(cloudServiceManagerPrefab, transform.position, transform.rotation);
-                cloudServiceManagerInstance.name = agentName + "_cloudServiceManager";
-                cloudServiceManagerInstance.transform.SetParent(transform);
+                if (cloudServiceManagerPrefab != null) 
+                {
+                    cloudServiceManagerInstance = Instantiate(cloudServiceManagerPrefab, transform.position, transform.rotation);
+                    cloudServiceManagerInstance.name = agentName + "_cloudServiceManager";
+                    cloudServiceManagerInstance.transform.SetParent(transform);
+                }
 
                 AssignAnimatorController();
                 //AssignCharacterController();

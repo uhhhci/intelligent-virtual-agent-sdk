@@ -1,6 +1,9 @@
 # Intelligent Virtual Human SDK Core
 All notable changes to this package are documented in this file.
 
+## 1.1.0 
+- Integrate Google Streaming API, where video, image, and audio is streamed together to Google Cloud. All STT, LLM and TTS are integrated altogether. This is less modular and flexible, but ensure fast low latency real-time response. Developers can see more info [here](https://docs.cloud.google.com/free/docs/free-cloud-features#free-tier).
+
 ## 1.0.3
 - add scripting define symbols for internal mixamo animation pack support. 
 - add ``BodyAnimationControllerType`` to distinguish and support different type of animation controllers (e.g. mixamo vs. rocketbox)
