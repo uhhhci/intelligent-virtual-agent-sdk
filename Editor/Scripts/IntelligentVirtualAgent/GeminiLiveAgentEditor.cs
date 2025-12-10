@@ -58,7 +58,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             EditorGUILayout.LabelField("Gemini Live Settings", EditorStyles.boldLabel);
             
             // Voice Selection
-            string[] voices = { "Puck", "Charon", "Kore", "Fenrir", "Aoede" };
+            string[] voices = { "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr" };
             int selectedVoice = System.Array.IndexOf(voices, voiceNameProp.stringValue);
             if (selectedVoice == -1) selectedVoice = 0;
             
