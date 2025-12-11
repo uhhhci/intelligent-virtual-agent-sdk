@@ -20,9 +20,17 @@ namespace IVH.Core.IntelligentVirtualAgent
         public string microphoneDeviceName;
         [Range(0.1f, 10f)] public float inputGain = 2.0f; 
         
-        // Noise Gate: Audio below this is sent as silence (0) to prevent static from interrupting the AI
-        [Range(0.001f, 0.1f)] public float noiseGateThreshold = 0.02f; 
+        [Header("VAD & Interruption")]
+        [Tooltip("Volume threshold (0.0 to 1.0) required to trigger voice detection.")]
+        [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
+        
+        [Tooltip("If true, filters out non-vocal frequencies (hum, clicks) before detecting voice.")]
+        public bool useVocalFrequencyFilter = true;
 
+        [Tooltip("How long to wait (in seconds) after interruption before accepting new audio (avoids echoes).")]
+        public float interruptionDebounceTime = 0.5f;
+
+        // --- Internal State ---
         private GeminiRealtimeWrapper _realtimeWrapper;
         private List<float> _audioBuffer = new List<float>();
         private StringBuilder _fullTranscript = new StringBuilder();
@@ -33,6 +41,13 @@ namespace IVH.Core.IntelligentVirtualAgent
         private int _lastMicPos;
         private bool _isRecording;
         private bool _isSessionReady = false;
+
+        private float _ignoreAudioUntil = 0f;
+
+        // DSP Memory for Bandpass Filter
+        private float _lpPrev = 0f;
+        private float _hpPrevInput = 0f;
+        private float _hpPrevOutput = 0f;
 
         protected override void Awake()
         {
@@ -45,7 +60,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             
             _realtimeWrapper.OnTextReceived += (text) => {
                 _fullTranscript.Append(text);
-                Debug.Log($"<color=white>Gemini:</color> {text}"); 
+                // Debug.Log($"<color=white>Gemini:</color> {text}"); 
             };
 
             _realtimeWrapper.OnCommandReceived += (act, emo, gaze) => {
@@ -68,6 +83,12 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (_realtimeWrapper != null) _realtimeWrapper.DisconnectAsync();
         }
 
+        private void Update()
+        {
+            if (_isSessionReady && _realtimeWrapper.IsConnected) ProcessMicrophone();
+            ProcessAudioPlayback();
+        }
+
         public void Connect()
         {
             _isSessionReady = false;
@@ -83,18 +104,15 @@ namespace IVH.Core.IntelligentVirtualAgent
             _realtimeWrapper.SendTextMessage("System: Session started. Greet the user.");
         }
 
+        // --- Microphone & VAD Logic ---
+
         private void StartMicrophone()
         {
             if (_isRecording) return;
             if (string.IsNullOrEmpty(microphoneDeviceName) && Microphone.devices.Length > 0) 
                 microphoneDeviceName = Microphone.devices[0];
             
-            // --- FIX IS HERE ---
-            // Increased buffer from 20 to 3599 seconds (approx 1 hour).
-            // This prevents the buffer from wrapping around during a session, 
-            // which caused the "hang after 3 rounds" bug.
             _micClip = Microphone.Start(microphoneDeviceName, true, 3599, 16000);
-            
             while(Microphone.GetPosition(microphoneDeviceName) <= 0) { } 
             
             _lastMicPos = 0;
@@ -112,70 +130,144 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (!_isRecording || _micClip == null) return;
             
             int currentPos = Microphone.GetPosition(microphoneDeviceName);
-            
-            // Safety check for buffer wrap (unlikely now with 1h buffer, but good practice)
-            if (currentPos < _lastMicPos) 
-            {
-                _lastMicPos = 0; // Reset logic if we somehow hit the hour mark
-                return;
-            }
+            if (currentPos < _lastMicPos) { _lastMicPos = 0; return; }
             
             int diff = currentPos - _lastMicPos;
-            
-            // Send roughly every 50ms-100ms
-            if (diff > 800) 
+            if (diff > 800) // ~50ms chunks
             {
                 float[] samples = new float[diff];
                 _micClip.GetData(samples, _lastMicPos);
 
-                byte[] pcmData = new byte[samples.Length * 2];
-                float maxVol = 0f;
+                // --- 1. INTELLIGENT VOICE DETECTION ---
+                // We analyze the samples to see if they contain *speech* specifically.
+                bool detectedSpeech = IsSpeechDetected(samples);
 
-                for (int i = 0; i < samples.Length; i++)
+                // --- 2. INTERRUPTION TRIGGER ---
+                // Only interrupt if the agent is talking AND we detected actual speech (not just noise)
+                if (_isPlaying && detectedSpeech)
                 {
-                    float rawSample = samples[i];
-                    if (Mathf.Abs(rawSample) > maxVol) maxVol = Mathf.Abs(rawSample);
+                    Debug.Log($"<color=yellow>INTERRUPTING: Speech Detected</color>");
+                    InterruptPlayback();
                 }
 
-                // Noise Gate: Send silence if volume is too low to prevent interruption bugs
-                bool isSilence = maxVol < noiseGateThreshold;
-
+                // --- 3. PREPARE & SEND DATA ---
+                // We send the audio regardless (so Gemini hears the interruption context)
+                byte[] pcmData = new byte[samples.Length * 2];
+                
+                // If the signal is extremely weak (silence), we can zero it out to save bandwidth/confusion
+                // But generally, sending filtered gain is better.
                 for (int i = 0; i < samples.Length; i++)
                 {
-                    float sample = isSilence ? 0f : (samples[i] * inputGain);
+                    float sample = samples[i] * inputGain;
                     sample = Mathf.Clamp(sample, -1f, 1f);
-                    
                     short val = (short)(sample * 32767);
                     BitConverter.GetBytes(val).CopyTo(pcmData, i * 2);
                 }
 
-                // Visual Debug to confirm mic is still running
-                if (maxVol > 0.05f) Debug.Log($"<color=grey>Mic Input ({maxVol:F2})</color>");
-
-                // Interruption Logic
-                if (_isPlaying && maxVol > 0.2f) 
-                {
-                    agentAudioSource.Stop();
-                    _audioBuffer.Clear();
-                    _isPlaying = false;
-                }
-
                 _realtimeWrapper.SendAudioChunk(pcmData);
-
                 _lastMicPos = currentPos;
             }
         }
 
-        // --- Rest of the Script (Standard) ---
+        /// <summary>
+        /// Analyzes audio chunk to determine if human speech is present.
+        /// Uses a bandpass filter (300Hz-3000Hz) to ignore rumble and hiss.
+        /// </summary>
+        private bool IsSpeechDetected(float[] rawSamples)
+        {
+            float sumSquared = 0f;
+            int count = rawSamples.Length;
+
+            for (int i = 0; i < count; i++)
+            {
+                float sample = rawSamples[i];
+
+                if (useVocalFrequencyFilter)
+                {
+                    // Apply Bandpass Filter (Approx 200Hz - 3000Hz at 16kHz sample rate)
+                    // 1. Low Pass (remove high hiss > 3kHz)
+                    // Simple IIR Low Pass: y[i] = y[i-1] + alpha * (x[i] - y[i-1])
+                    // Alpha ~ 0.5 for ~3kHz cut-off at 16kHz
+                    _lpPrev = _lpPrev + 0.5f * (sample - _lpPrev);
+                    float lowPassed = _lpPrev;
+
+                    // 2. High Pass (remove rumble < 200Hz)
+                    // Simple IIR High Pass: y[i] = alpha * (y[i-1] + x[i] - x[i-1])
+                    // Alpha ~ 0.9 for ~200Hz cut-off
+                    float highPassed = 0.9f * (_hpPrevOutput + lowPassed - _hpPrevInput);
+                    _hpPrevOutput = highPassed;
+                    _hpPrevInput = lowPassed;
+
+                    sample = highPassed;
+                }
+
+                sumSquared += sample * sample;
+            }
+
+            // Calculate RMS of the *filtered* signal
+            float rms = Mathf.Sqrt(sumSquared / count);
+
+            // Compare RMS against threshold (scaled by input gain to match user expectation)
+            return (rms * inputGain) > voiceDetectionThreshold;
+        }
+
+        private void InterruptPlayback()
+        {
+            if (agentAudioSource.isPlaying) agentAudioSource.Stop();
+            _audioBuffer.Clear();
+            _isPlaying = false;
+            _ignoreAudioUntil = Time.time + interruptionDebounceTime;
+        }
+
+        private void HandleAudioReceived(byte[] pcmData)
+        {
+            if (Time.time < _ignoreAudioUntil) return;
+
+            int count = pcmData.Length / 2;
+            for (int i = 0; i < count; i++) _audioBuffer.Add(BitConverter.ToInt16(pcmData, i * 2) / 32768.0f);
+        }
+
+        private void ProcessAudioPlayback()
+        {
+            if (Time.time < _ignoreAudioUntil) return;
+
+            if (!_isPlaying && _audioBuffer.Count > 2400) 
+            {
+                float[] data = _audioBuffer.ToArray();
+                _audioBuffer.Clear();
+                
+                if (data.Length == 0) return;
+
+                _playbackClip = AudioClip.Create("GeminiStream", data.Length, 1, 24000, false);
+                _playbackClip.SetData(data, 0);
+                agentAudioSource.clip = _playbackClip;
+                agentAudioSource.Play();
+                _isPlaying = true;
+                StartCoroutine(WaitForAudioEnd(_playbackClip.length));
+            }
+        }
+
+        private IEnumerator WaitForAudioEnd(float duration) 
+        { 
+            yield return new WaitForSeconds(duration); 
+            if(!agentAudioSource.isPlaying || agentAudioSource.clip == _playbackClip) _isPlaying = false; 
+        }
+
+        // --- View & Prompt Helpers ---
+
+        public void SendCurrentView() => StartCoroutine(CaptureWebcamAndSend());
+        private IEnumerator CaptureWebcamAndSend()
+        {
+            yield return CaptureWebcamImage(); 
+            if (webCamImageData != null && _isSessionReady) _realtimeWrapper.SendImage(webCamImageData);
+        }
+
         private string BuildSystemPrompt()
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"Your name is {agentName}. You are a conversational virtual human.");
-            sb.AppendLine("RULES:");
-            sb.AppendLine("1. You must call 'update_avatar_state' for EVERY response.");
-            sb.AppendLine("2. Call the function FIRST, then speak.");
-            sb.AppendLine("3. DO NOT speak the action names.");
-
+            sb.AppendLine("RULES: Call 'update_avatar_state' for EVERY response. Call it FIRST.");
+            
             if (actionController != null)
             {
                 var actions = actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType);
@@ -197,41 +289,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                  if (eyeGazeController != null) { eyeGazeController.playerTarget = player; eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.LookAtPlayer; }
              } else if (eyeGazeController != null) eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.Idle;
         }
-
-        private void HandleAudioReceived(byte[] pcmData)
-        {
-            int count = pcmData.Length / 2;
-            for (int i = 0; i < count; i++) _audioBuffer.Add(BitConverter.ToInt16(pcmData, i * 2) / 32768.0f);
-        }
-
-        private void Update()
-        {
-            if (_isSessionReady && _realtimeWrapper.IsConnected) ProcessMicrophone();
-            ProcessAudioPlayback();
-        }
-
-        public void SendCurrentView() => StartCoroutine(CaptureWebcamAndSend());
-        private IEnumerator CaptureWebcamAndSend()
-        {
-            yield return CaptureWebcamImage(); 
-            if (webCamImageData != null && _isSessionReady) _realtimeWrapper.SendImage(webCamImageData);
-        }
-
-        private void ProcessAudioPlayback()
-        {
-            if (!_isPlaying && _audioBuffer.Count > 2400) 
-            {
-                float[] data = _audioBuffer.ToArray();
-                _audioBuffer.Clear();
-                _playbackClip = AudioClip.Create("GeminiStream", data.Length, 1, 24000, false);
-                _playbackClip.SetData(data, 0);
-                agentAudioSource.clip = _playbackClip;
-                agentAudioSource.Play();
-                _isPlaying = true;
-                StartCoroutine(WaitForAudioEnd(_playbackClip.length));
-            }
-        }
-        private IEnumerator WaitForAudioEnd(float d) { yield return new WaitForSeconds(d); _isPlaying = false; }
 
         private List<string> CleanList(List<string> input)
         {
