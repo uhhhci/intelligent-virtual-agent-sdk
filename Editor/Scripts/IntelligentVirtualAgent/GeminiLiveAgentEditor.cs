@@ -104,7 +104,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             // 5. Setup Controls (Editor Mode)
             if (!Application.isPlaying)
             {
-                EditorGUILayout.LabelField("Agent Structure", EditorStyles.boldLabel);
+               // EditorGUILayout.LabelField("Agent Structure", EditorStyles.boldLabel);
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
                 if (GUILayout.Button("Clear Virtual Agent", GUILayout.Height(25))) agent.DestroyVirtualAgent();
