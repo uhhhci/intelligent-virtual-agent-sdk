@@ -29,7 +29,10 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         [Tooltip("How long to wait (in seconds) after interruption before accepting new audio (avoids echoes).")]
         public float interruptionDebounceTime = 0.5f;
-
+        
+        [Tooltip("How often (in seconds) to send a frame to Gemini. 0.5 = 2fps, 1.0 = 1fps.")]
+        [HideInInspector] [Range(0.2f, 5.0f)] public float visionUpdateFrequency = 1.0f;
+        private Coroutine _visionCoroutine;
         // --- Internal State ---
         private GeminiRealtimeWrapper _realtimeWrapper;
         private List<float> _audioBuffer = new List<float>();
@@ -79,6 +82,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void OnDestroy()
         {
+            if (_visionCoroutine != null) StopCoroutine(_visionCoroutine);
             StopMicrophone();
             if (_realtimeWrapper != null) _realtimeWrapper.DisconnectAsync();
         }
@@ -102,8 +106,30 @@ namespace IVH.Core.IntelligentVirtualAgent
             _isSessionReady = true;
             StartMicrophone();
             _realtimeWrapper.SendTextMessage("System: Session started. Greet the user.");
+
+            // Start automatic vision if enabled
+            if (vision)
+            {
+                if (_visionCoroutine != null) StopCoroutine(_visionCoroutine);
+                _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+            }
+            // Debug.Log("<color=green>Gemini Live Ready!</color>");
+            // _isSessionReady = true;
+            // StartMicrophone();
+            // _realtimeWrapper.SendTextMessage("System: Session started. Greet the user.");
         }
 
+        private IEnumerator AutoCaptureLoop()
+        {
+            while (_isSessionReady && _realtimeWrapper.IsConnected)
+            {
+                // 1. Capture and Send
+                yield return CaptureWebcamAndSend();
+
+                // 2. Wait for the interval
+                yield return new WaitForSeconds(visionUpdateFrequency);
+            }
+        }
         // --- Microphone & VAD Logic ---
 
         private void StartMicrophone()
@@ -280,7 +306,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             return sb.ToString();
         }
-
+        public bool IsSessionReady()
+        {
+            return _isSessionReady;
+        }
         private void HandleGaze(string mode)
         {
              if (string.IsNullOrEmpty(mode) || mode == "none") return;

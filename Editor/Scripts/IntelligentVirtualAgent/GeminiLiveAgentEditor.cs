@@ -22,6 +22,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private SerializedProperty resolutionProp;
         private SerializedProperty rawImageProp;
 
+        private SerializedProperty selectedWebCamNameProp; 
+        private SerializedProperty visionUpdateFrequencyProp; 
         public void OnEnable()
         {
             agent = target as GeminiLiveAgent;
@@ -37,6 +39,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             targetCameraTypeProp = serializedObject.FindProperty("targetCameraType");
             resolutionProp = serializedObject.FindProperty("resolution");
             rawImageProp = serializedObject.FindProperty("rawImage");
+            selectedWebCamNameProp = serializedObject.FindProperty("selectedWebCamName"); 
+            visionUpdateFrequencyProp = serializedObject.FindProperty("visionUpdateFrequency");
         }
 
         public override void OnInspectorGUI()
@@ -94,8 +98,45 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             {
                 EditorGUI.indentLevel++;
                 EditorGUILayout.PropertyField(targetCameraTypeProp);
+                
+                // --- NEW: Webcam Device Selection Logic ---
+                // Only show this dropdown if the Target Camera Type is WebCam
+                // Note: We need to cast the enum properly or check the int value. 
+                // Assuming TargetCameraType.WebCam is an enum.
+                
+                // We access the enum value index. You might need to check your enum definition index.
+                // Assuming WebCam is not index 0. If TargetCameraType is AgentCamera, WebCam, etc.
+                // It is safer to check the enum name if possible, or just check the int value.
+                // Let's assume you check the enum text:
+                if (targetCameraTypeProp.enumNames[targetCameraTypeProp.enumValueIndex] == "WebCam") 
+                {
+                    WebCamDevice[] devices = WebCamTexture.devices;
+                    if (devices.Length > 0)
+                    {
+                        // Create a list of names
+                        string[] deviceNames = new string[devices.Length];
+                        for (int i = 0; i < devices.Length; i++) deviceNames[i] = devices[i].name;
+
+                        // Find current index
+                        int camIndex = System.Array.IndexOf(deviceNames, selectedWebCamNameProp.stringValue);
+                        if (camIndex == -1) camIndex = 0;
+
+                        // Draw Popup
+                        camIndex = EditorGUILayout.Popup("Webcam Device", camIndex, deviceNames);
+
+                        // Save selection
+                        selectedWebCamNameProp.stringValue = deviceNames[camIndex];
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox("No Webcam devices found!", MessageType.Warning);
+                    }
+                }
+
                 EditorGUILayout.PropertyField(resolutionProp);
                 EditorGUILayout.PropertyField(rawImageProp);
+                EditorGUILayout.PropertyField(visionUpdateFrequencyProp, new GUIContent("Update Frequency (s)"));
+
                 EditorGUI.indentLevel--;
             }
 
@@ -123,18 +164,17 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                     agent.Connect();
                 }
                 
-                if (GUILayout.Button("Say Hello", GUILayout.Height(30)))
-                {
-                    //agent.SendHello();
-                }
                 GUILayout.EndHorizontal();
 
                 if (visionProp.boolValue)
                 {
-                    if (GUILayout.Button("Send Vision Snapshot", GUILayout.Height(30)))
-                    {
-                       // agent.SendCurrentView();
-                    }
+
+                   EditorGUILayout.LabelField($"Vision Auto-Send: {(agent.IsSessionReady() ? "Active" : "Waiting...")}", EditorStyles.miniLabel);
+                
+                    // if (GUILayout.Button("Send Vision Snapshot", GUILayout.Height(30)))
+                    // {
+                    //    // agent.SendCurrentView();
+                    // }
                 }
 
                 GUI.backgroundColor = Color.white;

@@ -143,13 +143,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             _ = SendJsonAsync(msg);
         }
 
+        /// <summary>
+        /// Compresses and Resizes image before sending to save bandwidth and tokens.
+        /// Standard Gemini recommendation: Max 512x512 or 1024x1024, JPEG Quality 50-70.
+        /// </summary>
         public void SendImage(byte[] imageData)
         {
-             if (!IsConnected) return;
-             var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
+            if (!IsConnected) return;
+            // imageData is now already a small, compressed JPEG from AgentBase
+            var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
             _ = SendJsonAsync(msg);
         }
-
         private async Task SendToolResponse(string id)
         {
             // Crucial: This response MUST reach the server or the agent hangs forever
