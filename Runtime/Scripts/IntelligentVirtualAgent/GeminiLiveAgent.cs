@@ -105,8 +105,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             Debug.Log("<color=green>Gemini Live Ready!</color>");
             _isSessionReady = true;
             StartMicrophone();
-            _realtimeWrapper.SendTextMessage("System: Session started. Greet the user.");
-
+            StartCoroutine(SendGreetingDelayed());
             // Start automatic vision if enabled
             if (vision)
             {
@@ -114,7 +113,13 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _visionCoroutine = StartCoroutine(AutoCaptureLoop());
             }
         }
-
+        private IEnumerator SendGreetingDelayed()
+        {
+            // Vertex AI needs a split second to settle the session state after setup_complete
+            yield return new WaitForSeconds(0.5f);
+            
+            _realtimeWrapper.SendTextMessage("System: Session started. You must call update_avatar_state first, then Greet the user.");
+        }
         private IEnumerator AutoCaptureLoop()
         {
             while (_isSessionReady && _realtimeWrapper.IsConnected)
@@ -314,7 +319,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private void HandleGaze(string mode)
         {
              if (string.IsNullOrEmpty(mode) || mode == "none") return;
-             if (mode.Equals("LookAtUser", StringComparison.OrdinalIgnoreCase)) {
+             if (mode.Equals("LookAtUser", StringComparison.OrdinalIgnoreCase) || mode.Equals("User", StringComparison.OrdinalIgnoreCase)) {
                  if (player == null) FindPlayer();
                  if (eyeGazeController != null) { eyeGazeController.playerTarget = player; eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.LookAtPlayer; }
              } else if (eyeGazeController != null) eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.Idle;

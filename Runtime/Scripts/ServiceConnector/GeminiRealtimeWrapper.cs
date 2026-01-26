@@ -37,7 +37,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public Action<string> OnTextReceived;
         public Action<string, string, string> OnCommandReceived;
         
-        [HideInInspector]public bool verboseLogging = false;
+        public bool verboseLogging = false;
         public bool IsConnected => _webSocket != null && _webSocket.State == WebSocketState.Open;
 
         private ClientWebSocket _webSocket;
