@@ -13,16 +13,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 {
     public enum GeminiModelType
     {
-        Flash20ExpGoogleAI,        // Expiring on March 31. 
-        Flash25NativePreviewGoogleAI,      // High Latency (Needs Beta)
-        //Flash25_Native_VertexAI  // requires vertex AI, google account.json setup
+        Flash20ExpGoogleAI,        // Expiring (Works on Alpha)
+        Flash25PreviewGoogleAI, // High Latency (AI Studio - API Key)
+        Flash25VertexAI          // Vertex AI Enterprise (Vertex - Service Account)
     }
 
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         [Header("Connection Settings")]
         private string apiKey;
-        public GeminiModelType selectedModel = GeminiModelType.Flash25NativePreviewGoogleAI;
+        private string accessToken; // For Vertex
+        public GeminiModelType selectedModel = GeminiModelType.Flash25PreviewGoogleAI;
 
         [Tooltip("Set to true for analyzing user's sentiments from audio. ")]
         [HideInInspector]public bool affectiveAnalysis = false; 
@@ -47,34 +48,50 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private readonly object _queueLock = new object();
         private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
         
+        // Endpoints
         private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
         private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+        
+        // Vertex AI Specifics
+        private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
+        private const string VERTEX_URL_TEMPLATE = "wss://{0}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent";
+
+        private bool IsVertexModel() => selectedModel == GeminiModelType.Flash25VertexAI;
 
         private string GetModelString() => selectedModel switch
         {
-            // The "Experimental" model (Only one that works on Alpha)
             GeminiModelType.Flash20ExpGoogleAI => "gemini-2.0-flash-exp",
-                        
-
-           // GeminiModelType.Flash25_Native_VertexAI => "gemini-live-2.5-flash-native-audio", 
-            // The "Smart but Slow" one
-
-            GeminiModelType.Flash25NativePreviewGoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
+            
+            // This is the Vertex AI Model ID
+            GeminiModelType.Flash25VertexAI => "gemini-live-2.5-flash-native-audio", 
+            
+            // This is the AI Studio Model ID
+            GeminiModelType.Flash25PreviewGoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
 
             _ => "gemini-2.5-flash-native-audio-preview-12-2025"
         };
 
-        private string GetBaseUrl()
+        private string GetUrl(string projectId = "")
         {
-            // ONLY the old experimental model uses Alpha. 
-            if (selectedModel == GeminiModelType.Flash20ExpGoogleAI ) return V1ALPHA_URL;
-            return V1BETA_URL;
+            if (IsVertexModel())
+            {
+                // Vertex URL (us-central1-aiplatform...)
+                Debug.Log(string.Format(VERTEX_URL_TEMPLATE, VERTEX_PROJECT_LOCATION));
+                return string.Format(VERTEX_URL_TEMPLATE, VERTEX_PROJECT_LOCATION);
+            }
+            else
+            {
+                // Standard URL
+                string baseUrl = (selectedModel == GeminiModelType.Flash20ExpGoogleAI) ? V1ALPHA_URL : V1BETA_URL;
+                return $"{baseUrl}?key={apiKey}";
+            }
         }
 
         private void Awake()
         {
-            // Ensure you have your API key setting logic here
-            apiKey = GeneralModelHelper.GetGeminiApiKey();
+            // Only need API key if NOT using Vertex
+            if (!IsVertexModel())
+                apiKey = GeneralModelHelper.GetGeminiApiKey();
         }
 
         private void Update()
@@ -87,19 +104,54 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         public async Task ConnectAsync(string systemInstruction, string voiceName)
         {
-            if (string.IsNullOrEmpty(apiKey)) { Debug.LogError("API Key Missing!"); return; }
             await DisconnectAsync();
 
             string modelId = GetModelString();
-            string uri = $"{GetBaseUrl()}?key={apiKey}";
+            string finalUri = "";
+
+            // --- AUTH SELECTION ---
+            if (IsVertexModel())
+            {
+                try 
+                {
+                    Debug.Log("Authenticating with Vertex AI Service Account...");
+                    // Looks in C:\Users\[USER]\.aiapi\service_account.json
+                    var authResult = await VertexAuthHelper.GetAccessTokenFromUserDir("service_account.json");
+                    
+                    this.accessToken = authResult.accessToken;
+                    
+                    // Vertex requires FULL resource path for the model
+                    modelId = $"projects/{authResult.projectId}/locations/{VERTEX_PROJECT_LOCATION}/publishers/google/models/{modelId}";
+                    finalUri = GetUrl(authResult.projectId);
+                }
+                catch(Exception e)
+                {
+                    Debug.LogError($"Vertex Auth Failed: {e.Message}");
+                    return;
+                }
+            }
+            else
+            {
+                // Standard API Key check
+                if (string.IsNullOrEmpty(apiKey)) apiKey = GeneralModelHelper.GetGeminiApiKey();
+                if (string.IsNullOrEmpty(apiKey)) { Debug.LogError("API Key Missing!"); return; }
+                finalUri = GetUrl();
+            }
             
             _webSocket = new ClientWebSocket();
+            
+            // --- HEADER INJECTION ---
+            if (IsVertexModel())
+            {
+                _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
+            }
+
             _cancellationTokenSource = new CancellationTokenSource();
 
             try
             {
                 Debug.Log($"Connecting to {modelId} ...");
-                await _webSocket.ConnectAsync(new Uri(uri), CancellationToken.None);
+                await _webSocket.ConnectAsync(new Uri(finalUri), CancellationToken.None);
                 
                 _ = ReceiveLoop();
                 await SendSetupWithGenericTool(modelId, systemInstruction, voiceName);
@@ -125,11 +177,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private async Task SendSetupWithGenericTool(string model, string systemPrompt, string voice)
         {
             var generationConfig = new JObject();
-            
             generationConfig["response_modalities"] = new JArray("AUDIO");
 
-            // SPEECH CONFIG
-            // Note: Ensure 'voice' is one of: "Puck", "Charon", "Kore", "Fenrir", "Aoede"
             var speechConfig = new JObject();
             var voiceConfig = new JObject();
             voiceConfig["prebuilt_voice_config"] = new JObject { ["voice_name"] = voice };
@@ -138,7 +187,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
             var setupContent = new JObject
             {
-                ["model"] = $"models/{model}",
+                // Vertex requires the full path here; Standard just needs "models/..."
+                ["model"] = IsVertexModel() ? model : $"models/{model}",
                 ["generation_config"] = generationConfig,
                 ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
@@ -179,6 +229,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             
             await SendJsonAsync(setupData);
         }
+
         public void SendTextMessage(string text)
         {
             if (!IsConnected) return;
@@ -258,16 +309,13 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             {
                 var root = JObject.Parse(json);
                 
-                // --- SETUP COMPLETE ---
-                // Note: Some models might not send this explicitly or structure it differently, 
-                // but usually the first server_content indicates readiness.
                 if (root["setupComplete"] != null || root["setup_complete"] != null)
                 {
                     EnqueueMainThread(() => OnSetupComplete?.Invoke());
                     return;
                 }
 
-                // --- TOOL CALLS ---
+                // TOOL CALLS
                 JToken toolCall = root["toolCall"] ?? root["tool_call"];
                 if (toolCall != null)
                 {
@@ -291,14 +339,13 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     }
                 }
 
-                // --- SERVER CONTENT ---
+                // SERVER CONTENT
                 JToken serverContent = root["serverContent"] ?? root["server_content"];
                 if (serverContent != null)
                 {
-                    // Interruption handling
                     if (serverContent["interrupted"]?.Value<bool>() == true)
                     {
-                         // Handle interruption (clear queues)
+                         // Handle interruption
                     }
 
                     JToken parts = serverContent["modelTurn"]?["parts"] ?? serverContent["model_turn"]?["parts"];
