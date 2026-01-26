@@ -291,7 +291,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private string BuildSystemPrompt()
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"Your name is {agentName}. You are a conversational virtual human.");
+            sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information about you : {additionalDescription}.");
             sb.AppendLine("RULES: Call 'update_avatar_state' for EVERY response. Call it FIRST.");
             
             if (actionController != null)

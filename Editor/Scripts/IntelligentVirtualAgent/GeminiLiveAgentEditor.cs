@@ -24,6 +24,9 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
         private SerializedProperty selectedWebCamNameProp; 
         private SerializedProperty visionUpdateFrequencyProp; 
+
+        private SerializedProperty cloudServiceManagerPrefabProp; 
+        private SerializedProperty simpleActorHeaderProp; 
         public void OnEnable()
         {
             agent = target as GeminiLiveAgent;
@@ -41,6 +44,10 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             rawImageProp = serializedObject.FindProperty("rawImage");
             selectedWebCamNameProp = serializedObject.FindProperty("selectedWebCamName"); 
             visionUpdateFrequencyProp = serializedObject.FindProperty("visionUpdateFrequency");
+
+            cloudServiceManagerPrefabProp = serializedObject.FindProperty("cloudServiceManager");
+            simpleActorHeaderProp = serializedObject.FindProperty("SimpleText");
+            
         }
 
         public override void OnInspectorGUI()
@@ -54,7 +61,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 "microphoneDeviceName", "inputGain", 
                 "vision", "targetCameraType", "resolution", "rawImage", 
                 // Exclude other AgentBase props you don't want clogging the UI
-                "TTSService", "STTService", "foundationModel", "triggerPhrases", "wakeupMode");
+                "TTSService", "STTService", "foundationModel", "triggerPhrases", "wakeupMode", "cloudServiceManagerPrefab");
 
             EditorGUILayout.Space();
 
@@ -171,15 +178,12 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
                    EditorGUILayout.LabelField($"Vision Auto-Send: {(agent.IsSessionReady() ? "Active" : "Waiting...")}", EditorStyles.miniLabel);
                 
-                    // if (GUILayout.Button("Send Vision Snapshot", GUILayout.Height(30)))
-                    // {
-                    //    // agent.SendCurrentView();
-                    // }
                 }
 
                 GUI.backgroundColor = Color.white;
             }
-
+            
+        
             serializedObject.ApplyModifiedProperties();
         }
     }
