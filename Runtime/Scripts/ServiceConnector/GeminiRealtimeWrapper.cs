@@ -54,7 +54,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         
         // Vertex AI Specifics
         private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
-        private const string VERTEX_URL_TEMPLATE = "wss://{0}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent";
+        private const string VERTEX_URL_TEMPLATE = "wss://{0}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent";
 
         private bool IsVertexModel() => selectedModel == GeminiModelType.Flash25VertexAI;
 

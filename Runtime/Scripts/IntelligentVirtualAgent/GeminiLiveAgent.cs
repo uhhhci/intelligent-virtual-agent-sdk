@@ -118,7 +118,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             // Vertex AI needs a split second to settle the session state after setup_complete
             yield return new WaitForSeconds(0.5f);
             
-            _realtimeWrapper.SendTextMessage("System: Session started. You must call update_avatar_state first, then Greet the user.");
+            _realtimeWrapper.SendTextMessage("System: Session started. You must call update_avatar_state ONCE first, then Greet the user.");
         }
         private IEnumerator AutoCaptureLoop()
         {
