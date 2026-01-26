@@ -13,8 +13,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 {
     public enum GeminiModelType
     {
-        Flash20_Exp_GoogleAI,        // Expiring on March 31. 
-        Flash25_Native_Preview_GoogleAI,      // High Latency (Needs Beta)
+        Flash20ExpGoogleAI,        // Expiring on March 31. 
+        Flash25NativePreviewGoogleAI,      // High Latency (Needs Beta)
         //Flash25_Native_VertexAI  // requires vertex AI, google account.json setup
     }
 
@@ -22,9 +22,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
     {
         [Header("Connection Settings")]
         private string apiKey;
-        public GeminiModelType selectedModel = GeminiModelType.Flash25_Native_Preview_GoogleAI;
+        public GeminiModelType selectedModel = GeminiModelType.Flash25NativePreviewGoogleAI;
 
-        [Tooltip("Set to true for analyzing user's sentiments from audio. (Gemini 2.5+ only)")]
+        [Tooltip("Set to true for analyzing user's sentiments from audio. ")]
         [HideInInspector]public bool affectiveAnalysis = false; 
 
         [Tooltip("Compress context to extend session length.")]
@@ -53,13 +53,13 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private string GetModelString() => selectedModel switch
         {
             // The "Experimental" model (Only one that works on Alpha)
-            GeminiModelType.Flash20_Exp_GoogleAI => "gemini-2.0-flash-exp",
+            GeminiModelType.Flash20ExpGoogleAI => "gemini-2.0-flash-exp",
                         
 
            // GeminiModelType.Flash25_Native_VertexAI => "gemini-live-2.5-flash-native-audio", 
             // The "Smart but Slow" one
 
-            GeminiModelType.Flash25_Native_Preview_GoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
+            GeminiModelType.Flash25NativePreviewGoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
 
             _ => "gemini-2.5-flash-native-audio-preview-12-2025"
         };
@@ -67,7 +67,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private string GetBaseUrl()
         {
             // ONLY the old experimental model uses Alpha. 
-            if (selectedModel == GeminiModelType.Flash20_Exp_GoogleAI ) return V1ALPHA_URL;
+            if (selectedModel == GeminiModelType.Flash20ExpGoogleAI ) return V1ALPHA_URL;
             return V1BETA_URL;
         }
 
