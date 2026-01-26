@@ -70,7 +70,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 Debug.Log($"<color=cyan>CMD:</color> {act}");
                 if(!string.IsNullOrEmpty(act) && act != "none") PerformAction(act);
                 if(!string.IsNullOrEmpty(emo) && emo != "none") ExpressEmotion(emo);
-                HandleGaze(gaze);
+                if(!string.IsNullOrEmpty(gaze) && emo != "none") HandleGaze(gaze);
             };
         }
 
@@ -113,10 +113,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 if (_visionCoroutine != null) StopCoroutine(_visionCoroutine);
                 _visionCoroutine = StartCoroutine(AutoCaptureLoop());
             }
-            // Debug.Log("<color=green>Gemini Live Ready!</color>");
-            // _isSessionReady = true;
-            // StartMicrophone();
-            // _realtimeWrapper.SendTextMessage("System: Session started. Greet the user.");
         }
 
         private IEnumerator AutoCaptureLoop()
@@ -297,12 +293,17 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (actionController != null)
             {
                 var actions = actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType);
-                sb.AppendLine("Actions: " + string.Join(", ", CleanList(actions)));
+                sb.AppendLine("Possible Actions: " + string.Join(", ", CleanList(actions)));
             }
             if (faceAnimator != null)
             {
                 var emotions = faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter);
-                sb.AppendLine("Emotions: " + string.Join(", ", CleanList(emotions)));
+                sb.AppendLine("Possible Emotions: " + string.Join(", ", CleanList(emotions)));
+                Debug.Log( CleanList(emotions));
+            }
+            if (eyeGazeController != null)
+            {
+                sb.AppendLine("Possible Gaze functions:" + "LookAtUser, LookIdly");
             }
             return sb.ToString();
         }
@@ -313,7 +314,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private void HandleGaze(string mode)
         {
              if (string.IsNullOrEmpty(mode) || mode == "none") return;
-             if (mode.Equals("User", StringComparison.OrdinalIgnoreCase)) {
+             if (mode.Equals("LookAtUser", StringComparison.OrdinalIgnoreCase)) {
                  if (player == null) FindPlayer();
                  if (eyeGazeController != null) { eyeGazeController.playerTarget = player; eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.LookAtPlayer; }
              } else if (eyeGazeController != null) eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.Idle;

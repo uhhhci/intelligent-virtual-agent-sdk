@@ -8,13 +8,27 @@ using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using IVH.Core.Utils;
+
 namespace IVH.Core.ServiceConnector.Gemini.Realtime
 {
+    public enum GeminiModelType
+    {
+        Flash20_Exp_GoogleAI,        // Expiring on March 31. 
+        Flash25_Native_Preview_GoogleAI,      // High Latency (Needs Beta)
+        //Flash25_Native_VertexAI  // requires vertex AI, google account.json setup
+    }
+
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         [Header("Connection Settings")]
         private string apiKey;
-        public string modelName = "gemini-2.0-flash-exp";
+        public GeminiModelType selectedModel = GeminiModelType.Flash25_Native_Preview;
+
+        [Tooltip("Set to true for analyzing user's sentiments from audio. (Gemini 2.5+ only)")]
+        [HideInInspector]public bool affectiveAnalysis = false; 
+
+        [Tooltip("Compress context to extend session length.")]
+        public bool contextWindowSliding = true; 
 
         // Events
         public Action OnSetupComplete; 
@@ -22,7 +36,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public Action<string> OnTextReceived;
         public Action<string, string, string> OnCommandReceived;
         
-        public bool verboseLogging = false;
+        [HideInInspector]public bool verboseLogging = false;
         public bool IsConnected => _webSocket != null && _webSocket.State == WebSocketState.Open;
 
         private ClientWebSocket _webSocket;
@@ -31,11 +45,35 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         // Thread Safety
         private readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
         private readonly object _queueLock = new object();
-        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1); // CRITICAL FIX
+        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+        
+        private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
+        private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
-        private const string BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
+        private string GetModelString() => selectedModel switch
+        {
+            // The "Experimental" model (Only one that works on Alpha)
+            GeminiModelType.Flash20_Exp_GoogleAI => "gemini-2.0-flash-exp",
+                        
+
+           // GeminiModelType.Flash25_Native_VertexAI => "gemini-live-2.5-flash-native-audio", 
+            // The "Smart but Slow" one
+
+            GeminiModelType.Flash25_Native_Preview_GoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
+
+            _ => "gemini-2.5-flash-native-audio-preview-12-2025"
+        };
+
+        private string GetBaseUrl()
+        {
+            // ONLY the old experimental model uses Alpha. 
+            if (selectedModel == GeminiModelType.Flash20_Exp ) return V1ALPHA_URL;
+            return V1BETA_URL;
+        }
+
         private void Awake()
         {
+            // Ensure you have your API key setting logic here
             apiKey = GeneralModelHelper.GetGeminiApiKey();
         }
 
@@ -52,17 +90,19 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             if (string.IsNullOrEmpty(apiKey)) { Debug.LogError("API Key Missing!"); return; }
             await DisconnectAsync();
 
-            string uri = $"{BASE_URL}?key={apiKey}";
+            string modelId = GetModelString();
+            string uri = $"{GetBaseUrl()}?key={apiKey}";
+            
             _webSocket = new ClientWebSocket();
             _cancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                Debug.Log($"Connecting to {modelName}...");
+                Debug.Log($"Connecting to {modelId} ...");
                 await _webSocket.ConnectAsync(new Uri(uri), CancellationToken.None);
                 
                 _ = ReceiveLoop();
-                await SendSetupWithGenericTool(modelName, systemInstruction, voiceName);
+                await SendSetupWithGenericTool(modelId, systemInstruction, voiceName);
             }
             catch (Exception e) { Debug.LogError($"Connection Error: {e.Message}"); }
         }
@@ -72,7 +112,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             if (_webSocket != null)
             {
                 _cancellationTokenSource?.Cancel();
-                // Release any pending locks
                 if (_sendLock.CurrentCount == 0) _sendLock.Release();
                 
                 try { await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
@@ -85,49 +124,61 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         private async Task SendSetupWithGenericTool(string model, string systemPrompt, string voice)
         {
-            var setupMsg = new
+            var generationConfig = new JObject();
+            
+            generationConfig["response_modalities"] = new JArray("AUDIO");
+
+            // SPEECH CONFIG
+            // Note: Ensure 'voice' is one of: "Puck", "Charon", "Kore", "Fenrir", "Aoede"
+            var speechConfig = new JObject();
+            var voiceConfig = new JObject();
+            voiceConfig["prebuilt_voice_config"] = new JObject { ["voice_name"] = voice };
+            speechConfig["voice_config"] = voiceConfig;
+            generationConfig["speech_config"] = speechConfig;
+
+            var setupContent = new JObject
             {
-                setup = new
-                {
-                    model = $"models/{model}",
-                    generation_config = new
-                    {
-                        response_modalities = new List<string> { "AUDIO" },
-                        speech_config = new { voice_config = new { prebuilt_voice_config = new { voice_name = voice } } }
-                    },
-                    system_instruction = new { parts = new[] { new { text = systemPrompt } } },
-                    tools = new[] 
-                    { 
-                        new 
-                        { 
-                            function_declarations = new[] 
-                            {
-                                new 
-                                {
-                                    name = "update_avatar_state",
-                                    description = "Call this function to change the avatar's physical behavior.",
-                                    parameters = new 
-                                    {
-                                        type = "object",
-                                        properties = new 
-                                        {
-                                            action = new { type = "string", description = "Body animation name" },
-                                            emotion = new { type = "string", description = "Facial expression name" },
-                                            gaze = new { type = "string", description = "Target: 'User' or 'Idle'" }
-                                        },
-                                        required = new[] { "action", "emotion", "gaze" }
-                                    }
-                                }
-                            }
-                        } 
-                    },
-                    tool_config = new { function_calling_config = new { mode = "AUTO" } }
-                }
+                ["model"] = $"models/{model}",
+                ["generation_config"] = generationConfig,
+                ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
 
-            await SendJsonAsync(setupMsg);
-        }
+            var toolsArray = new JArray();
+            var tool = new JObject();
+            var avatarFunc = new JObject
+            {
+                ["name"] = "update_avatar_state",
+                ["description"] = "Change the avatar's physical behavior.",
+                ["parameters"] = new JObject
+                {
+                    ["type"] = "object",
+                    ["properties"] = new JObject
+                    {
+                        ["action"] = new JObject { ["type"] = "string", ["description"] = "Body animation name" },
+                        ["emotion"] = new JObject { ["type"] = "string", ["description"] = "Facial expression name" },
+                        ["gaze"] = new JObject { ["type"] = "string", ["description"] = "Target: 'User' or 'Idle'" }
+                    },
+                    ["required"] = new JArray("action", "emotion", "gaze")
+                }
+            };
+            tool["function_declarations"] = new JArray(avatarFunc);
+            toolsArray.Add(tool);
+            setupContent["tools"] = toolsArray;
 
+            if (contextWindowSliding)
+            {
+                setupContent["context_window_compression"] = new JObject
+                {
+                    ["sliding_window"] = new JObject()
+                };
+            }
+
+            var setupData = new JObject { ["setup"] = setupContent };
+
+            if (verboseLogging) Debug.Log($"Sending Setup: {setupData.ToString(Formatting.None)}");
+            
+            await SendJsonAsync(setupData);
+        }
         public void SendTextMessage(string text)
         {
             if (!IsConnected) return;
@@ -138,51 +189,36 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public void SendAudioChunk(byte[] pcmData)
         {
             if (!IsConnected) return;
-            // High frequency call - strictly thread safe now
             var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "audio/pcm", data = Convert.ToBase64String(pcmData) } } } };
             _ = SendJsonAsync(msg);
         }
 
-        /// <summary>
-        /// Compresses and Resizes image before sending to save bandwidth and tokens.
-        /// Standard Gemini recommendation: Max 512x512 or 1024x1024, JPEG Quality 50-70.
-        /// </summary>
         public void SendImage(byte[] imageData)
         {
             if (!IsConnected) return;
-            // imageData is now already a small, compressed JPEG from AgentBase
             var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
             _ = SendJsonAsync(msg);
         }
+
         private async Task SendToolResponse(string id)
         {
-            // Crucial: This response MUST reach the server or the agent hangs forever
             var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = "update_avatar_state", response = new { status = "ok" } } } } };
             await SendJsonAsync(msg);
         }
 
-        // --- THREAD SAFE SENDER ---
         private async Task SendJsonAsync(object data)
         {
             if (!IsConnected) return;
             
-            // Wait for the lock
             await _sendLock.WaitAsync();
-
             try 
             {
-                if (!IsConnected) return; // Re-check after wait
+                if (!IsConnected) return;
                 string json = JsonConvert.SerializeObject(data, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
                 await _webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Text, true, CancellationToken.None); 
             }
-            catch(Exception ex) 
-            { 
-                Debug.LogError($"Send Error: {ex.Message}"); 
-            }
-            finally
-            {
-                _sendLock.Release();
-            }
+            catch(Exception ex) { Debug.LogError($"Send Error: {ex.Message}"); }
+            finally { _sendLock.Release(); }
         }
 
         private async Task ReceiveLoop()
@@ -202,18 +238,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
                     if (result.MessageType == WebSocketMessageType.Close) 
                     {
-                        Debug.LogWarning($"Server Closed Connection. Status: {result.CloseStatus} / {result.CloseStatusDescription}");
+                        Debug.LogWarning($"Server Closed Connection. Status: {result.CloseStatus}");
                         break;
                     }
 
-                    ProcessMessage(Encoding.UTF8.GetString(ms.ToArray()));
+                    string jsonResponse = Encoding.UTF8.GetString(ms.ToArray());
+                    ProcessMessage(jsonResponse);
                 }
             }
             catch (Exception ex) 
             { 
-                // Only log if it's not a deliberate cancellation
-                if(!_cancellationTokenSource.IsCancellationRequested)
-                    Debug.Log($"Receive Loop Stopped: {ex.Message}"); 
+                if(!_cancellationTokenSource.IsCancellationRequested) Debug.Log($"Receive Loop Stopped: {ex.Message}"); 
             }
         }
 
@@ -223,13 +258,16 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             {
                 var root = JObject.Parse(json);
                 
+                // --- SETUP COMPLETE ---
+                // Note: Some models might not send this explicitly or structure it differently, 
+                // but usually the first server_content indicates readiness.
                 if (root["setupComplete"] != null || root["setup_complete"] != null)
                 {
                     EnqueueMainThread(() => OnSetupComplete?.Invoke());
                     return;
                 }
 
-                // 1. Tool Calls
+                // --- TOOL CALLS ---
                 JToken toolCall = root["toolCall"] ?? root["tool_call"];
                 if (toolCall != null)
                 {
@@ -253,14 +291,14 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     }
                 }
 
-                // 2. Content
+                // --- SERVER CONTENT ---
                 JToken serverContent = root["serverContent"] ?? root["server_content"];
                 if (serverContent != null)
                 {
-                    // Handle Interruption (Clear buffer if the server says the user interrupted)
-                    if (root["serverContent"]?["interrupted"]?.Value<bool>() == true)
+                    // Interruption handling
+                    if (serverContent["interrupted"]?.Value<bool>() == true)
                     {
-                         // Optional: You could trigger an event here to clear the Agent's audio buffer
+                         // Handle interruption (clear queues)
                     }
 
                     JToken parts = serverContent["modelTurn"]?["parts"] ?? serverContent["model_turn"]?["parts"];
@@ -268,7 +306,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     {
                         foreach (var part in parts)
                         {
-                            if (part["text"] != null) EnqueueMainThread(() => OnTextReceived?.Invoke(part["text"].ToString()));
+                            if (part["text"] != null) 
+                                EnqueueMainThread(() => OnTextReceived?.Invoke(part["text"].ToString()));
                             
                             if (part["inlineData"] != null || part["inline_data"] != null)
                             {

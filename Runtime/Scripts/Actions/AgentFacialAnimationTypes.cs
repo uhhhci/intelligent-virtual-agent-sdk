@@ -124,14 +124,14 @@ namespace IVH.Core.Actions
         { }
     }
 
-    public class ConfusedUnhappy : AgentFacialAnimation
-    {
-        public ConfusedUnhappy() : base(
-                typeof(ConfusedUnhappy).Name,
-            "An IVA expressing confusion with a furrowed brow and a slight tilt of the head, showing uncertainty.",
-            new List<string> { "CC4" })
-        { }
-    }
+    // public class ConfusedUnhappy : AgentFacialAnimation
+    // {
+    //     public ConfusedUnhappy() : base(
+    //             typeof(ConfusedUnhappy).Name,
+    //         "An IVA expressing confusion with a furrowed brow and a slight tilt of the head, showing uncertainty.",
+    //         new List<string> { "CC4" })
+    //     { }
+    // }
 
 /*    public class Considering : AgentFacialAnimation
     {
