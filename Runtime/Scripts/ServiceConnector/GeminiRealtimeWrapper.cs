@@ -22,7 +22,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
     {
         [Header("Connection Settings")]
         private string apiKey;
-        public GeminiModelType selectedModel = GeminiModelType.Flash25_Native_Preview;
+        public GeminiModelType selectedModel = GeminiModelType.Flash25_Native_Preview_GoogleAI;
 
         [Tooltip("Set to true for analyzing user's sentiments from audio. (Gemini 2.5+ only)")]
         [HideInInspector]public bool affectiveAnalysis = false; 
@@ -67,7 +67,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private string GetBaseUrl()
         {
             // ONLY the old experimental model uses Alpha. 
-            if (selectedModel == GeminiModelType.Flash20_Exp ) return V1ALPHA_URL;
+            if (selectedModel == GeminiModelType.Flash20_Exp_GoogleAI ) return V1ALPHA_URL;
             return V1BETA_URL;
         }
 
