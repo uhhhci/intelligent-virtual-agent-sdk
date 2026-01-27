@@ -52,7 +52,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
         private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
         
-        // Vertex AI Specifics
+        // Don't use vertex AI v1beta1 is unstable, using v1 instead.
         private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
         private const string VERTEX_URL_TEMPLATE = "wss://{0}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent";
 

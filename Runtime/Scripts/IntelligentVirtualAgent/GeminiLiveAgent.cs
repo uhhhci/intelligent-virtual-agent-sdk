@@ -44,7 +44,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private int _lastMicPos;
         private bool _isRecording;
         private bool _isSessionReady = false;
-
+        private bool _handshakeComplete = false; 
         private float _ignoreAudioUntil = 0f;
 
         // DSP Memory for Bandpass Filter
@@ -100,6 +100,36 @@ namespace IVH.Core.IntelligentVirtualAgent
             _ = _realtimeWrapper.ConnectAsync(dynamicPrompt, voiceName);
         }
 
+        private IEnumerator WaitForGreetingToFinishAndStartVision()
+        {
+            // A. Wait for the handshake state (Agent prepares response)
+            // We give it a generous timeout (e.g. 10 seconds max wait)
+            float timeout = 10f;
+            while (timeout > 0)
+            {
+                // We check if the Agent has started playing the "Hello" audio
+                if (_isPlaying && agentAudioSource.isPlaying)
+                {
+                    break; // Audio started!
+                }
+                timeout -= 0.1f;
+                yield return new WaitForSeconds(0.1f);
+            }
+
+            // B. Now wait for the "Hello" to FINISH playing.
+            // This ensures we don't send an image while the agent is speaking the greeting,
+            // which would cause an "Interruption" signal on Vertex and cut the audio off.
+            while (_isPlaying && agentAudioSource.isPlaying)
+            {
+                yield return new WaitForSeconds(0.2f);
+            }
+            
+            Debug.Log("<color=cyan>Greeting Finished. Vision Stream ACTIVE.</color>");
+            
+            // C. NOW we are safe to open the floodgates.
+            _handshakeComplete = true; 
+            _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+        }
         private void HandleReady()
         {
             Debug.Log("<color=green>Gemini Live Ready!</color>");
@@ -110,8 +140,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (vision)
             {
                 if (_visionCoroutine != null) StopCoroutine(_visionCoroutine);
-                _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+
+                if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI)
+                {
+                    StartCoroutine(WaitForGreetingToFinishAndStartVision());
+                }
+                else
+                {
+                    _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+                    
+                }
             }
+
         }
         private IEnumerator SendGreetingDelayed()
         {
@@ -290,7 +330,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             yield return new WaitForSeconds(duration); 
             if(!agentAudioSource.isPlaying || agentAudioSource.clip == _playbackClip) _isPlaying = false; 
         }
-
         // --- View & Prompt Helpers ---
 
         public void SendCurrentView() => StartCoroutine(CaptureWebcamAndSend());
@@ -304,9 +343,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information: {additionalDescription}.");
             
-            // --- CRITICAL FIX FOR 3X REPETITION ---
-            // Old: "Call 'update_avatar_state' for EVERY response. Call it FIRST." (Causes Loop)
-            // New: "Call 'update_avatar_state' ONCE at the very beginning of your turn." (Stops Loop)
             sb.AppendLine("SYSTEM RULES:");
             sb.AppendLine("1. You control a 3D avatar. You MUST call the function 'update_avatar_state' ONCE at the start of your turn to set your expression.");
             sb.AppendLine("2. DO NOT call the function more than once per turn.");
