@@ -63,7 +63,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             
             _realtimeWrapper.OnTextReceived += (text) => {
                 _fullTranscript.Append(text);
-                // Debug.Log($"<color=white>Gemini:</color> {text}"); 
+                Debug.Log($"<color=white>Gemini:</color> {text}"); 
             };
 
             _realtimeWrapper.OnCommandReceived += (act, emo, gaze) => {
@@ -116,9 +116,20 @@ namespace IVH.Core.IntelligentVirtualAgent
         private IEnumerator SendGreetingDelayed()
         {
             // Vertex AI needs a split second to settle the session state after setup_complete
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.8f);
             
-            _realtimeWrapper.SendTextMessage("System: Session started. You must call update_avatar_state ONCE first, then Greet the user.");
+            if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI){
+                // vertex AI handles system starts differently 
+                string silentSetupPrompt = "System: STARTUP SEQUENCE.\n" +
+                                "1. Call 'update_avatar_state' to set your initial pose.\n" +
+                                "2. DO NOT generate any audio/speech in this turn.\n" +
+                                "3. Wait for the tool confirmation.";
+                _realtimeWrapper.SendTextMessage(silentSetupPrompt);
+            }
+            else
+            {
+                _realtimeWrapper.SendTextMessage("System: Session started. Call update_avatar_state ONCE and Greet the user.");   
+            }
         }
         private IEnumerator AutoCaptureLoop()
         {
@@ -288,28 +299,40 @@ namespace IVH.Core.IntelligentVirtualAgent
             yield return CaptureWebcamImage(); 
             if (webCamImageData != null && _isSessionReady) _realtimeWrapper.SendImage(webCamImageData);
         }
-
         private string BuildSystemPrompt()
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information about you : {additionalDescription}.");
-            sb.AppendLine("RULES: Call 'update_avatar_state' for EVERY response. Call it FIRST.");
+            sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information: {additionalDescription}.");
             
+            // --- CRITICAL FIX FOR 3X REPETITION ---
+            // Old: "Call 'update_avatar_state' for EVERY response. Call it FIRST." (Causes Loop)
+            // New: "Call 'update_avatar_state' ONCE at the very beginning of your turn." (Stops Loop)
+            sb.AppendLine("SYSTEM RULES:");
+            sb.AppendLine("1. You control a 3D avatar. You MUST call the function 'update_avatar_state' ONCE at the start of your turn to set your expression.");
+            sb.AppendLine("2. DO NOT call the function more than once per turn.");
+            sb.AppendLine("3. After calling the tool, proceed immediately to your spoken response.");
+
+            // Logic for Affective Analysis support
+            if (_realtimeWrapper.affectiveAnalysis)
+            {
+                sb.AppendLine("5. Listen carefully to the user's voice and watch carefully within your vision. If they sound emotional, match your 'emotion' parameter to their sentiment (e.g., if they sound sad, set emotion to 'sad' or 'concerned').");
+            }
+
             if (actionController != null)
             {
                 var actions = actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType);
-                sb.AppendLine("Possible Actions: " + string.Join(", ", CleanList(actions)));
+                sb.AppendLine("Allowed 'action' values: " + string.Join(", ", CleanList(actions)));
             }
             if (faceAnimator != null)
             {
                 var emotions = faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter);
-                sb.AppendLine("Possible Emotions: " + string.Join(", ", CleanList(emotions)));
-                Debug.Log( CleanList(emotions));
+                sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
             }
             if (eyeGazeController != null)
             {
-                sb.AppendLine("Possible Gaze functions:" + "LookAtUser, LookIdly");
+                sb.AppendLine("Allowed 'gaze' values: 'User', 'Idle'");
             }
+            
             return sb.ToString();
         }
         public bool IsSessionReady()

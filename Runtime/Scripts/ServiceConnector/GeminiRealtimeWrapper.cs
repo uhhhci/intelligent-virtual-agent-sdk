@@ -26,7 +26,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public GeminiModelType selectedModel = GeminiModelType.Flash25PreviewGoogleAI;
 
         [Tooltip("Set to true for analyzing user's sentiments from audio. ")]
-        [HideInInspector]public bool affectiveAnalysis = false; 
+        public bool affectiveAnalysis = false; 
 
         [Tooltip("Compress context to extend session length.")]
         public bool contextWindowSliding = true; 
@@ -50,7 +50,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         
         // Endpoints
         private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
-        private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+        private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
         
         // Vertex AI Specifics
         private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
@@ -60,9 +60,10 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         private string GetModelString() => selectedModel switch
         {
+            // This is the Google AI studio model, it will be deprecated on March 31, 2026.  Afterwards, use Flash25 VertexAI or Flash25PreviewGoogleAI instead
             GeminiModelType.Flash20ExpGoogleAI => "gemini-2.0-flash-exp",
             
-            // This is the Vertex AI Model ID
+            // This is the Vertex AI Model ID. Vertex AI introduces more costs
             GeminiModelType.Flash25VertexAI => "gemini-live-2.5-flash-native-audio", 
             
             // This is the AI Studio Model ID
@@ -187,12 +188,16 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
             var setupContent = new JObject
             {
-                // Vertex requires the full path here; Standard just needs "models/..."
                 ["model"] = IsVertexModel() ? model : $"models/{model}",
                 ["generation_config"] = generationConfig,
                 ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
-
+            // This could add 10-15%
+            if (affectiveAnalysis && (selectedModel == GeminiModelType.Flash25PreviewGoogleAI))
+            {
+                generationConfig["enable_affective_dialog"] = true; 
+            }
+                
             var toolsArray = new JArray();
             var tool = new JObject();
             var avatarFunc = new JObject
@@ -250,6 +255,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
             _ = SendJsonAsync(msg);
         }
+
 
         private async Task SendToolResponse(string id)
         {
