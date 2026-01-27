@@ -114,7 +114,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 cloudServiceManager = cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
             }
             else
-            { Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct.. "); }
+            { Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct unless you are using the gemini live agent.. "); }
 
             systemPrompt = createSystemPrompt();
 

@@ -391,5 +391,38 @@ namespace IVH.Core.IntelligentVirtualAgent
                 .Select(s => Regex.Replace(s.Trim(), @"[^a-zA-Z0-9_]", "")) 
                 .Distinct().ToList();
         }
+
+        // setup agent
+        public override void SetupVirtualAgent()
+        {
+
+            if (agentPrefab != null && agentInstance == null)
+            {
+                agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
+                agentInstance.name = agentName;
+                agentInstance.transform.SetParent(transform);
+
+
+                AssignAnimatorController();
+                //AssignCharacterController();
+                SetupLipSync();
+                SetupAgentActionController();
+                SetupEMotionHandler();
+                SetupAgentVisionCamera();
+                SetupSimpleEyeBlink();
+                SetupEyeGazeController();
+                SetupAudio();
+                //SetupUIIndicator();
+                _realtimeWrapper = GetComponent<GeminiRealtimeWrapper>();
+                if (_realtimeWrapper == null) _realtimeWrapper = gameObject.AddComponent<GeminiRealtimeWrapper>();
+
+
+            }
+            else
+            {
+                Debug.LogWarning("Agent prefab is not assigned or agent is already set up.");
+            }
+        }
+
     }
 }

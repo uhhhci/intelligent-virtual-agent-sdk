@@ -26,7 +26,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public GeminiModelType selectedModel = GeminiModelType.Flash25PreviewGoogleAI;
 
         [Tooltip("Set to true for analyzing user's sentiments from audio. ")]
-        public bool affectiveAnalysis = false; 
+        public bool affectiveAnalysis = true; 
 
         [Tooltip("Compress context to extend session length.")]
         public bool contextWindowSliding = true; 
@@ -37,7 +37,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public Action<string> OnTextReceived;
         public Action<string, string, string> OnCommandReceived;
         
-        public bool verboseLogging = false;
+        public bool verboseLogging = true;
         public bool IsConnected => _webSocket != null && _webSocket.State == WebSocketState.Open;
 
         private ClientWebSocket _webSocket;
