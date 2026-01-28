@@ -26,6 +26,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private SerializedProperty visionUpdateFrequencyProp; 
 
         private SerializedProperty cloudServiceManagerPrefabProp; 
+
+        private SerializedProperty agentLanguageProp; 
         private SerializedProperty simpleActorHeaderProp; 
         public void OnEnable()
         {
@@ -46,6 +48,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             visionUpdateFrequencyProp = serializedObject.FindProperty("visionUpdateFrequency");
 
             cloudServiceManagerPrefabProp = serializedObject.FindProperty("cloudServiceManager");
+            agentLanguageProp = serializedObject.FindProperty("language");
+
             simpleActorHeaderProp = serializedObject.FindProperty("SimpleText");
             
         }
@@ -61,7 +65,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 "microphoneDeviceName", "inputGain", 
                 "vision", "targetCameraType", "resolution", "rawImage", 
                 // Exclude other AgentBase props you don't want clogging the UI
-                "TTSService", "STTService", "foundationModel", "triggerPhrases", "wakeupMode", "cloudServiceManagerPrefab");
+                "TTSService", "STTService", "foundationModel", "triggerPhrases", "wakeupMode", "cloudServiceManagerPrefab", "language");
 
             EditorGUILayout.Space();
 

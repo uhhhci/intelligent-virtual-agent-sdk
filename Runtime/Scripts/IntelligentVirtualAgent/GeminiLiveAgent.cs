@@ -359,10 +359,20 @@ namespace IVH.Core.IntelligentVirtualAgent
                 var actions = actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType);
                 sb.AppendLine("Allowed 'action' values: " + string.Join(", ", CleanList(actions)));
             }
-            if (faceAnimator != null)
+            if(emotionHandlerType == EmotionHandlerType.CC4_Animation){
+                if (faceAnimator != null)
+                {
+                    var emotions = faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter);
+                    sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
+                }
+            }
+            else
             {
-                var emotions = faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter);
-                sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
+                if (faceAnimator != null)
+                {
+                    var emotions = faceAnimator.GetSimpleDidimoActionName();
+                    sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
+                }
             }
             if (eyeGazeController != null)
             {

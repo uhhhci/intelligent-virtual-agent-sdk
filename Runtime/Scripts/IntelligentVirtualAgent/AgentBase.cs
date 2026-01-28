@@ -363,42 +363,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             // 7. Cleanup CPU memory
             Destroy(resultTex);
         }
-        // protected IEnumerator CaptureWebcamImage()
-        // {
-        //     // Wait for the end of the frame to capture
-        //     yield return new WaitForEndOfFrame();
-
-        //     // Original webcam texture dimensions
-        //     int originalWidth = webCamTexture.width;
-        //     int originalHeight = webCamTexture.height;
-
-        //     // Reduced resolution (30% of the original)
-        //     int reducedWidth = Mathf.RoundToInt(originalWidth * 0.3f);
-        //     int reducedHeight = Mathf.RoundToInt(originalHeight * 0.3f);
-
-        //     // Create a RenderTexture for downscaling
-        //     RenderTexture renderTexture = new RenderTexture(reducedWidth, reducedHeight, 24);
-        //     // Copy the webcam texture to the RenderTexture
-        //     Graphics.Blit(webCamTexture, renderTexture);
-
-        //     // Set the RenderTexture as active
-        //     RenderTexture.active = renderTexture;
-
-        //     // Create a Texture2D to read the downscaled RenderTexture
-        //     Texture2D reducedPhoto = new Texture2D(reducedWidth, reducedHeight, TextureFormat.RGB24, false);
-        //     reducedPhoto.ReadPixels(new Rect(0, 0, reducedWidth, reducedHeight), 0, 0);
-        //     reducedPhoto.Apply();
-
-        //     // Encode the texture to PNG
-        //     webCamImageData = reducedPhoto.EncodeToPNG();
-
-        //     // Cleanup
-        //     RenderTexture.active = null;
-        //     renderTexture.Release();
-        //     Destroy(renderTexture);
-        //     Destroy(reducedPhoto);
-        // }
-
 
         protected void CaptureDepth(Vector2Int res)
         {

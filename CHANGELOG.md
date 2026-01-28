@@ -27,6 +27,9 @@ All notable changes to this package are documented in this file.
 - **Multimodal Image Streaming**
   - Added support for **streaming image inputs** for real-time multimodal understanding.
 
+- **Sample Scenes**
+  - Added sample scenes with webcame streaming 
+
 ## 1.1.0 
 - Integrate Google Streaming API, where video, image, and audio is streamed together to Google Cloud. All STT, LLM and TTS are integrated altogether. This is less modular and flexible, but ensure fast low latency real-time response. Developers can see more info [here](https://docs.cloud.google.com/free/docs/free-cloud-features#free-tier).
 

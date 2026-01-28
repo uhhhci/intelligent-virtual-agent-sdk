@@ -192,7 +192,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 ["generation_config"] = generationConfig,
                 ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
-            // This could add 10-15%
+            // This could add 10-15% latency
             if (affectiveAnalysis && (selectedModel == GeminiModelType.Flash25PreviewGoogleAI))
             {
                 generationConfig["enable_affective_dialog"] = true; 
