@@ -5337,7 +5337,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   selectedModel: 0
-  affectiveAnalysis: 1
+  affectiveAnalysis: 0
   contextWindowSliding: 1
   verboseLogging: 1
 --- !u!114 &1236978214
@@ -5368,7 +5368,7 @@ MonoBehaviour:
   TTSService: 0
   foundationModel: 0
   STTService: 0
-  vision: 1
+  vision: 0
   targetCameraType: 1
   imageTriggerMode: 1
   resolution: 2

@@ -13,8 +13,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 {
     public enum GeminiModelType
     {
-        Flash20ExpGoogleAI,        // Expiring (Works on Alpha)
-        Flash25PreviewGoogleAI, // High Latency (AI Studio - API Key)
+        //Flash20ExpGoogleAI,        // Expiring (Works on Alpha), disabled for now
+        Flash25PreviewGoogleAI,   // High Latency (AI Studio - API Key)
         Flash25VertexAI          // Vertex AI Enterprise (Vertex - Service Account)
     }
 
@@ -50,7 +50,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         
         // Endpoints
         private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
-        private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
+        private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
         
         // Don't use vertex AI v1beta1 is unstable, using v1 instead.
         private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
@@ -61,7 +61,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private string GetModelString() => selectedModel switch
         {
             // This is the Google AI studio model, it will be deprecated on March 31, 2026.  Afterwards, use Flash25 VertexAI or Flash25PreviewGoogleAI instead
-            GeminiModelType.Flash20ExpGoogleAI => "gemini-2.0-flash-exp",
+            //GeminiModelType.Flash20ExpGoogleAI => "gemini-2.0-flash-exp",
             
             // This is the Vertex AI Model ID. Vertex AI introduces more costs
             GeminiModelType.Flash25VertexAI => "gemini-live-2.5-flash-native-audio", 
@@ -83,7 +83,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             else
             {
                 // Standard URL
-                string baseUrl = (selectedModel == GeminiModelType.Flash20ExpGoogleAI) ? V1ALPHA_URL : V1BETA_URL;
+                string baseUrl = V1ALPHA_URL;
                 return $"{baseUrl}?key={apiKey}";
             }
         }
