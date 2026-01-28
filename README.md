@@ -125,19 +125,61 @@ The current implementation supports 3 different live model. Two free-tier models
 | **Gemini Live 2.5 Flash** | Google AI | Free | High | [`gemini-2.5-flash-native-audio-preview-12-2025`](https://ai.google.dev/gemini-api/docs/live?example=mic-stream) |
 | **Gemini 2.0 Flash Exp** | Google AI | Free | Low | `gemini-2.0-flash-exp`<br>*(To be deprecated/terminated in March 2026)* |
 
+### Option 1: Google AI Studio (Quick Start)
+*Recommended for individual developers and prototyping.*
 
-To use the Google AI studio model (free tier, but please check their data processing policy.)
+1.  **Get the Key:**
+    * Visit [Google AI Studio](https://aistudio.google.com/).
+    * Click **Get API key** in the left sidebar.
+    * Click **Create API key**.
 
-You should enter your Google AI Studio API key in an ``auth.json`` file in the ``C:\Users\USER_NAME\.aiapi``
- directory for Unity to directly parse the API key: 
+2.  **Create the Auth File:**
+    * Navigate to your `.aiapi` directory.
+    * Create a file named `auth.json`.
+    * Paste the following JSON content:
 
- ```json
-{
-    "gemini_api_key": "YOUR API KEY",
-}
- ```
+    ```json
+    {
+        "gemini_api_key": "PASTE_YOUR_API_KEY_HERE"
+    }
+    ```
 
-For using the Vertex AI model, you need to create a service account via Google Cloud, and put the ``service_account.json`` file in the ``C:\Users\USER_NAME\.aiapi`` directory to support VertexAI authentication 
+### Option 2: Google Cloud Vertex AI (Enterprise)
+*Recommended for production applications requiring higher rate limits and strict data compliance.*
+
+#### 1. Enable the API
+1.  Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2.  Select your project (or create a new one).
+3.  In the top search bar, type **"Vertex AI API"**.
+4.  Select it from the Marketplace results and click **Enable**.
+
+#### 2. Create a Service Account
+1.  In the search bar, type **"Service Accounts"** (found under **IAM & Admin**) and open it.
+2.  Click **+ CREATE SERVICE ACCOUNT** at the top.
+3.  **Step 1 (Details):** Enter a name (e.g., `unity-gemini-app`) and click **Create and Continue**.
+4.  **Step 2 (Permissions):**
+    * Click the **Select a role** filter.
+    * Type **"Vertex AI User"** and select it.
+    * *Note: This specific role is required to invoke models.*
+    * Click **Continue** and then **Done**.
+
+#### 3. Generate and Save Credentials
+1.  In the Service Accounts list, click the **Email address** of the account you just created.
+2.  Click the **Keys** tab in the top navigation bar.
+3.  Click **Add Key** → **Create new key**.
+4.  Select **JSON** and click **Create**.
+5.  A JSON file will download to your computer.
+
+#### 4. Install the Credential File
+1.  Rename the downloaded file to: `service-account.json`.
+2.  Move the file into your configuration directory:
+    `C:\Users\YOUR_USERNAME\.aiapi\`
+
+### ✅  Verification
+Your `.aiapi` folder should contain one of the following files depending on your chosen method:
+
+* `auth.json` (for AI Studio)
+* `service_account.json` (for Vertex AI)
 
 ## Documentation
 
