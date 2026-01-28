@@ -10,8 +10,9 @@ namespace IVH.Core.ServiceConnector
     {
         // please get to know model capabilities here, including vision, structural output, audio, and caching here
         // https://ai.google.dev/gemini-api/docs/models/gemini#gemini-2.0-flash
-        Gemini_1_5_Pro,// gemini-1.5-pro
-        Gemini_2_Exp  // gemini-2.0-flash-exp
+        // Gemini_1_5_Pro,// gemini-1.5-pro
+        // Gemini_2_Exp,  // gemini-2.0-flash-exp
+        Gemini2_5_Flash_Lite //gemini-2.5-flash-lite
     }
 
     public enum GeminiMessageRole
@@ -73,10 +74,12 @@ namespace IVH.Core.ServiceConnector
         {
             switch (model)
             {
-                case GeminiModels.Gemini_1_5_Pro:
-                    return "gemini-1.5-pro";
-                case GeminiModels.Gemini_2_Exp:
-                    return "gemini-2.0-flash-exp";
+                // case GeminiModels.Gemini_1_5_Pro:
+                //     return "gemini-1.5-pro";
+                // case GeminiModels.Gemini_2_Exp:
+                //     return "gemini-2.0-flash-exp";
+                case GeminiModels.Gemini2_5_Flash_Lite:
+                    return "gemini-2.5-flash-lite";
                 default:
                     throw new ArgumentException($"Unsupported model: {model}");
             }

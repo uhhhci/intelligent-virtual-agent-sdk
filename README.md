@@ -1,7 +1,7 @@
 # Intelligent Virtual Human SDK (v2.0.0)
 
 
-<img src="./Documentations/images/Teaser.png" alt="teaser"
+<img src="./Documentations~/images/Teaser.png" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
 The package contains the Intelligent Virtual Human SDK developed by the [human computer interaction group](https://www.inf.uni-hamburg.de/en/inst/ab/hci.html) at Hamburg University. 
@@ -17,7 +17,7 @@ Oliva, R., Wiesing, M., Gállego, J., Inami, M., Interrante, V., Lecuyer, A., Mc
 
 ##  Demo
 
-<img src="./Documentations/images/interoperability.gif" alt="teaser"
+<img src="./Documentations~/images/interoperability.gif" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
 Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual humans. Due to the license restriction, we only include an example character and animations from Rocketbox characters. 
@@ -52,7 +52,7 @@ Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual h
 
 ### Main features
 
-<img src=".//Documentations/images/v2.0_interaction_flow.png" alt="teaser"
+<img src="./Documentations~/images/v2.0_interaction_flow.png" alt="teaser"
     style="float: center; margin-right: 10px; height: 250px " /> 
     
 The image above shows the interaction loop of a conversational virtual agent. 
@@ -126,7 +126,7 @@ The current implementation supports 3 different live model. Two free-tier models
 | **Gemini 2.0 Flash Exp** | Google AI | Free | Low | `gemini-2.0-flash-exp`<br>*(To be deprecated/terminated in March 2026)* |
 
 
-To use the Google AI studio model:
+To use the Google AI studio model (free tier, but please check their data processing policy.)
 
 You should enter your Google AI Studio API key in an ``auth.json`` file in the ``C:\Users\USER_NAME\.aiapi``
  directory for Unity to directly parse the API key: 
