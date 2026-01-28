@@ -1,5 +1,31 @@
-# Intelligent Virtual Human SDK Core
+# Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
+
+## 2.0.0
+- **Gemini Live 2.5 Flash API Integration**
+  - Integrated **Gemini Live 2.5 Flash** from **Vertex AI** *(paid tier, low latency)* using  
+    [`gemini-live-2.5-flash-native-audio`](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api).
+  - Integrated **Gemini Live 2.5 Flash** from **Google AI** *(free tier, higher latency)* using  
+    [`gemini-2.5-flash-native-audio-preview-12-2025`](https://ai.google.dev/gemini-api/docs/live?example=mic-stream).
+  - The previous integration with  
+    `gemini-2.0-flash-exp` *(free tier, low latency)* will be **deprecated and terminated by Google AI Studio in March 2026**.
+
+- **Dynamic IVA Interruption**
+  - Added support for dynamically interrupting the Intelligent Virtual Agent (IVA) using a **lightweight Voice Activity Detection (VAD)** algorithm.
+
+- **System Prompt Fixes**
+  - Fixed typos and resolved bugs in the system prompt.
+
+- **Affective & Multilingual Dialogue**
+  - Enabled **affective dialogue** (emotion-aware responses).
+  - Added **automatic multilingual language switching**, supported by the  
+    `gemini-live-2.5-flash` model family.
+
+- **Extended Context via Sliding Windows**
+  - Implemented **sliding window context management** to extend context length during long-running sessions.
+
+- **Multimodal Image Streaming**
+  - Added support for **streaming image inputs** for real-time multimodal understanding.
 
 ## 1.1.0 
 - Integrate Google Streaming API, where video, image, and audio is streamed together to Google Cloud. All STT, LLM and TTS are integrated altogether. This is less modular and flexible, but ensure fast low latency real-time response. Developers can see more info [here](https://docs.cloud.google.com/free/docs/free-cloud-features#free-tier).
