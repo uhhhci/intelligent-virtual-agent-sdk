@@ -53,7 +53,8 @@ Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual h
 ### Main features
 
 <img src=".//Documentations/images/v2.0_interaction_flow.png" alt="teaser"
-    style="float: center; margin-right: 10px; " /> 
+    style="float: center; margin-right: 10px; height: 250px " /> 
+    
 The image above shows the interaction loop of a conversational virtual agent. 
 
 * Conversational intelligent virtual agents with human-AI interaction loop.
