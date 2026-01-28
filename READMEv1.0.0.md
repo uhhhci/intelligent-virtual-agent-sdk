@@ -1,7 +1,7 @@
 # Intelligent Virtual Human SDK
 
 
-<img src="./Documentations/images/Teaser.png" alt="teaser"
+<img src="./Documentations~/images/Teaser.png" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
 The package contains the Intelligent Virtual Human SDK developed by the [human computer interaction group](https://www.inf.uni-hamburg.de/en/inst/ab/hci.html) at Hamburg University. 
@@ -17,7 +17,7 @@ Oliva, R., Wiesing, M., Gállego, J., Inami, M., Interrante, V., Lecuyer, A., Mc
 
 ##  Demo
 
-<img src="./Documentations/images/interoperability.gif" alt="teaser"
+<img src="./Documentations~/images/interoperability.gif" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
 Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual humans. Due to the license restriction, we only include an example character and animations from Rocketbox characters. 
@@ -59,7 +59,7 @@ See [here](https://www.youtube.com/watch?v=RDT30Evpmic&feature=youtu.be) for ful
 
 ### Main features
 
-<img src=".//Documentations/images/System_Setup.png" alt="teaser"
+<img src="./Documentations~/images/System_Setup.png" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 The image above shows the interaction loop of a conversational virtual agent. 
 
