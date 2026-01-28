@@ -16,7 +16,7 @@ namespace IVH.Core.ServiceConnector
     {
         [Header("General Setup")]
         private string geminiAPIKey = ""; // Keep your OpenAI API key secure.
-        [SerializeField] private GeminiModels model = GeminiModels.Gemini_2_Exp;
+        [SerializeField] private GeminiModels model = GeminiModels.Gemini2_5_Flash_Lite;
         private int maxTokens = 1000000; // dont restrict this too much otherwise the conversation will get truncated
         [SerializeField, Range(0f, 1f)] private float samplingTemperature = 0.5f;
 

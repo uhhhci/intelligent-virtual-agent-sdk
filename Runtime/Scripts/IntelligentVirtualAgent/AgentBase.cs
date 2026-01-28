@@ -50,6 +50,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         [HideInInspector] public TargetCameraType targetCameraType = TargetCameraType.AgentCamera;
         [HideInInspector] public ImageTriggerMode imageTriggerMode = ImageTriggerMode.Auto;
         [HideInInspector] public ImageResolution resolution = ImageResolution.VGA;
+        [HideInInspector] public string selectedWebCamName = "";
         protected string triggerPhrase = "what are you seeing";
         protected WebCamTexture webCamTexture;
         [HideInInspector] public RawImage rawImage;  // Drag a RawImage UI element here to display the webcam feed
@@ -102,7 +103,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         [HideInInspector] public GameObject ListeningIndicator;
         [HideInInspector] public GameObject ThinkingIndicator;
         
-        [Header("Instant Actor")]
+        [HideInInspector][Header("Instant Actor")]
         [Tooltip("This text will mostly be used by the 'QuickSpeech' function for an LLM to quickly create a TTS response without going into the interaction loop. ")]
         public string SimpleText = "";
 
@@ -113,7 +114,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 cloudServiceManager = cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
             }
             else
-            { Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct.. "); }
+            { Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct unless you are using the gemini live agent.. "); }
 
             systemPrompt = createSystemPrompt();
 
@@ -137,16 +138,38 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             if (vision && targetCameraType == TargetCameraType.WebCam)
             {
-                // Find and start the webcam
-                webCamTexture = new WebCamTexture();
-                webCamTexture.Play();  // Start the webcam
-                if (rawImage != null)
+                if (vision && targetCameraType == TargetCameraType.WebCam)
                 {
+                    // --- MODIFIED: Webcam Initialization ---
+                    if (!string.IsNullOrEmpty(selectedWebCamName))
+                    {
+                        // Initialize specific camera requested by Editor
+                        webCamTexture = new WebCamTexture(selectedWebCamName);
+                    }
+                    else
+                    {
+                        // Fallback to default
+                        webCamTexture = new WebCamTexture();
+                    }
 
-                    rawImage.texture = webCamTexture;
-                    rawImage.material.mainTexture = webCamTexture;
-
+                    webCamTexture.Play(); 
+                    
+                    if (rawImage != null)
+                    {
+                        rawImage.texture = webCamTexture;
+                        rawImage.material.mainTexture = webCamTexture;
+                    }
                 }
+                // // Find and start the webcam
+                // webCamTexture = new WebCamTexture();
+                // webCamTexture.Play();  // Start the webcam
+                // if (rawImage != null)
+                // {
+
+                //     rawImage.texture = webCamTexture;
+                //     rawImage.material.mainTexture = webCamTexture;
+
+                // }
             }
 
         }
@@ -160,9 +183,9 @@ namespace IVH.Core.IntelligentVirtualAgent
             return animator;
         }
         #region agent features
-        public IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
+        public virtual IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
 
-        public async Task Listen()
+        public virtual async Task Listen()
         {
             // Await the result directly from the async STT method.
             string result = await cloudServiceManager.STT(language, STTService);
@@ -306,43 +329,40 @@ namespace IVH.Core.IntelligentVirtualAgent
             egoImageData = texture2D.EncodeToPNG();
             Destroy(texture2D);
         }
-
         protected IEnumerator CaptureWebcamImage()
         {
-            // Wait for the end of the frame to capture
+            if (webCamTexture == null || !webCamTexture.isPlaying) yield break;
+
             yield return new WaitForEndOfFrame();
 
-            // Original webcam texture dimensions
-            int originalWidth = webCamTexture.width;
-            int originalHeight = webCamTexture.height;
+            // 1. Calculate dimensions (Max 512px width to save tokens/bandwidth)
+            float aspect = (float)webCamTexture.width / webCamTexture.height;
+            int targetWidth = 512; 
+            int targetHeight = Mathf.RoundToInt(targetWidth / aspect);
 
-            // Reduced resolution (30% of the original)
-            int reducedWidth = Mathf.RoundToInt(originalWidth * 0.3f);
-            int reducedHeight = Mathf.RoundToInt(originalHeight * 0.3f);
+            // 2. Use a Temporary RenderTexture for GPU-based resizing (Fast!)
+            RenderTexture rt = RenderTexture.GetTemporary(targetWidth, targetHeight, 0);
+            
+            // 3. Blit copies and resizes the webcam texture into the small RenderTexture
+            Graphics.Blit(webCamTexture, rt);
 
-            // Create a RenderTexture for downscaling
-            RenderTexture renderTexture = new RenderTexture(reducedWidth, reducedHeight, 24);
-            // Copy the webcam texture to the RenderTexture
-            Graphics.Blit(webCamTexture, renderTexture);
+            // 4. Read the pixels from the RenderTexture into a Texture2D
+            RenderTexture.active = rt;
+            Texture2D resultTex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
+            resultTex.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
+            resultTex.Apply();
 
-            // Set the RenderTexture as active
-            RenderTexture.active = renderTexture;
-
-            // Create a Texture2D to read the downscaled RenderTexture
-            Texture2D reducedPhoto = new Texture2D(reducedWidth, reducedHeight, TextureFormat.RGB24, false);
-            reducedPhoto.ReadPixels(new Rect(0, 0, reducedWidth, reducedHeight), 0, 0);
-            reducedPhoto.Apply();
-
-            // Encode the texture to PNG
-            webCamImageData = reducedPhoto.EncodeToPNG();
-
-            // Cleanup
+            // 5. Cleanup GPU memory immediately
             RenderTexture.active = null;
-            renderTexture.Release();
-            Destroy(renderTexture);
-            Destroy(reducedPhoto);
-        }
+            RenderTexture.ReleaseTemporary(rt);
 
+            // 6. Encode to JPG (Quality 50 is sufficient for AI vision)
+            // This creates the final byte[] array ready for Gemini
+            webCamImageData = resultTex.EncodeToJPG(50); 
+
+            // 7. Cleanup CPU memory
+            Destroy(resultTex);
+        }
 
         protected void CaptureDepth(Vector2Int res)
         {
@@ -386,10 +406,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
 
-                // setup serevice manager
-                cloudServiceManagerInstance = Instantiate(cloudServiceManagerPrefab, transform.position, transform.rotation);
-                cloudServiceManagerInstance.name = agentName + "_cloudServiceManager";
-                cloudServiceManagerInstance.transform.SetParent(transform);
+                if (cloudServiceManagerPrefab != null) 
+                {
+                    cloudServiceManagerInstance = Instantiate(cloudServiceManagerPrefab, transform.position, transform.rotation);
+                    cloudServiceManagerInstance.name = agentName + "_cloudServiceManager";
+                    cloudServiceManagerInstance.transform.SetParent(transform);
+                }
 
                 AssignAnimatorController();
                 //AssignCharacterController();
