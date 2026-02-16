@@ -126,7 +126,7 @@ The current implementation supports 3 different live model. Two free-tier models
 | **Gemini 2.0 Flash Exp** | Google AI | Free | Low | `gemini-2.0-flash-exp`<br>*(To be deprecated/terminated in March 2026)* |
 
 ### Option 1: Google AI Studio (Quick Start)
-*Recommended for individual developers and prototyping.*
+*Recommended for individual developers and prototyping. Please check [Google AI Studio Documentations](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio) for further details.*
 
 1.  **Get the Key:**
     * Visit [Google AI Studio](https://aistudio.google.com/).
