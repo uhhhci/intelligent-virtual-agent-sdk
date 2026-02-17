@@ -175,10 +175,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             while (_isSessionReady && _realtimeWrapper.IsConnected)
             {
-                // 1. Capture and Send
-                yield return CaptureWebcamAndSend();
+                yield return CaptureAndSend();
 
-                // 2. Wait for the interval
                 yield return new WaitForSeconds(visionUpdateFrequency);
             }
         }
@@ -332,11 +330,20 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
         // --- View & Prompt Helpers ---
 
-        public void SendCurrentView() => StartCoroutine(CaptureWebcamAndSend());
-        private IEnumerator CaptureWebcamAndSend()
+        public void SendCurrentView() => StartCoroutine(CaptureAndSend());
+        private IEnumerator CaptureAndSend()
         {
-            yield return CaptureWebcamImage(); 
-            if (webCamImageData != null && _isSessionReady) _realtimeWrapper.SendImage(webCamImageData);
+            if (targetCameraType == TargetCameraType.WebCam)
+            {
+                yield return CaptureWebcamImage(); 
+                if (webCamImageData != null && _isSessionReady) _realtimeWrapper.SendImage(webCamImageData);
+            }
+
+            if(targetCameraType == TargetCameraType.AgentCamera)
+            {
+                yield return CaptureEgocentricImageCoroutine(); 
+                if (egoImageData != null && _isSessionReady) _realtimeWrapper.SendImage(egoImageData);
+            }
         }
         private string BuildSystemPrompt()
         {

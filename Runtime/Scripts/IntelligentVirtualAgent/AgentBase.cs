@@ -305,7 +305,43 @@ namespace IVH.Core.IntelligentVirtualAgent
         #endregion
 
         #region agent vision
+        protected IEnumerator CaptureEgocentricImageCoroutine()
+        {
+            Vector2Int res= new Vector2Int(512, 512);
+            // Wait for rendering to complete so we don't get a blank image
+            yield return new WaitForEndOfFrame();
 
+            if (agentVisionCamera == null)
+            {
+                Debug.LogWarning("Agent Vision Camera is missing!");
+                yield break;
+            }
+
+            // 1. Use GetTemporary for better memory management than "new RenderTexture"
+            RenderTexture rt = RenderTexture.GetTemporary(res.x, res.y, 24);
+            
+            // 2. Render the Agent's camera view to this texture
+            agentVisionCamera.targetTexture = rt;
+            agentVisionCamera.Render();
+
+            // 3. Read pixels
+            RenderTexture.active = rt;
+            Texture2D texture2D = new Texture2D(res.x, res.y, TextureFormat.RGB24, false);
+            texture2D.ReadPixels(new Rect(0, 0, res.x, res.y), 0, 0);
+            texture2D.Apply();
+
+            // 4. Cleanup
+            agentVisionCamera.targetTexture = null;
+            RenderTexture.active = null;
+            RenderTexture.ReleaseTemporary(rt); // Release back to pool
+
+            // 5. Encode to JPG (Much faster and lighter than PNG for LLM streaming)
+            // Quality 50 is usually sufficient for Gemini Vision
+            egoImageData = texture2D.EncodeToJPG(50); 
+
+            // 6. Memory cleanup
+            Destroy(texture2D);
+        }
         protected void CaptureEgocentricImage(Vector2Int res)
         {
             // Take a snapshot of an image from egocentric agent's perspective
