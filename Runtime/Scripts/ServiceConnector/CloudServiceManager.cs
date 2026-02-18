@@ -370,6 +370,53 @@ public class CloudServiceManager : MonoBehaviour
         }
     }
 
+    public async Task<List<GeminiBoundingBoxResponse>> SendGeminiBoundingBoxRequest(
+        string userMessage,
+        List<GeminiMessage> _conversation,
+        byte[] imageData,
+        List<GeminiTool> tools = null)
+    {
+        if (googleCloudWrapper != null)
+        {
+            try
+            {
+                // Create a clean conversation context.
+                // We intentionally ignore '_conversation' here to prevent the Agent's System Prompt
+                // (e.g., "Answer in 1-2 sentences") from conflicting with the strict JSON requirement.
+                List<GeminiMessage> tempConversation = new List<GeminiMessage>();
+
+                // Strict system instruction for computer vision tasks.
+                string jsonPrompt = @"Detect objects in the image. Return a JSON array. 
+                Each item must have strictly these two fields: 
+                1. 'label' (string) 
+                2. 'box_2d' (array of 4 integers: [ymin, xmin, ymax, xmax]). 
+                Do not use markdown. Just raw JSON.";
+
+                // Send request using the clean context and strict prompt
+                string responseText = await googleCloudWrapper.MakeBoundingBoxesRequest(
+                    tempConversation,
+                    Convert.ToBase64String(imageData),
+                    OnRequest,
+                    jsonPrompt,
+                    tools);
+
+                // Deserialize and return
+                var boundingBoxes = googleCloudWrapper.ParseBoundingBoxesFromJson(responseText);
+                return boundingBoxes;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[CloudServiceManager] Error calling Gemini bounding box API: {ex.Message}");
+                return new List<GeminiBoundingBoxResponse>();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[CloudServiceManager] Google Cloud Gemini wrapper is not set up in the scene!");
+            return new List<GeminiBoundingBoxResponse>();
+        }
+    }
+
     // public async Task<string> SendLocalLLMTextRequest(string userMessage)// TODO: Implement local model
     // {
     //     return await localLLM.SendPrompt(userMessage);
@@ -377,17 +424,21 @@ public class CloudServiceManager : MonoBehaviour
 
     // Currently only accomodate gemini tools, because OpenAI doesn't support tool calling along with text response
     // In case of future support of OpenAI, needs to make tool calling more generic. 
-    public async Task<string> QueryVLM(string userMessage, List<ChatMessage> _conversation, FoundationModels serviceType, byte[] imageData, List<GeminiTool> geminiTools = null)
+    public async Task<object> QueryVLM(
+        string userMessage,
+        List<ChatMessage> _conversation,
+        FoundationModels serviceType,
+        byte[] imageData,
+        List<GeminiTool> geminiTools = null,
+        bool requestBoundingBoxes = false)
     {
         if (serviceType == FoundationModels.Unity_Gemini_VLM)
         {
-            // Convert List<ChatMessage> to List<GeminiMessage>
-            // Careful, this can be slow, think about a better future solution
-            var geminiConversation = _conversation
-                .OfType<GeminiMessage>() // Filters and casts to GeminiMessage
-                .ToList();
-            return await SendGeminiImageRequest(userMessage, geminiConversation, imageData, geminiTools);
-
+            var geminiConversation = _conversation.OfType<GeminiMessage>().ToList();
+            if (requestBoundingBoxes)
+                return await SendGeminiBoundingBoxRequest(userMessage, geminiConversation, imageData, tools: geminiTools);
+            else
+                return await SendGeminiImageRequest(userMessage, geminiConversation, imageData, geminiTools);
         }
         else if (serviceType == FoundationModels.Unity_OpenAI_VLM)
         {
@@ -495,5 +546,4 @@ public class CloudServiceManager : MonoBehaviour
             throw new ArgumentException($"Unsupported service type: {serviceType}");
         }
     }
-
 }

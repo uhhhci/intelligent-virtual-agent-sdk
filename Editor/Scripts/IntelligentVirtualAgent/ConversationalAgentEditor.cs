@@ -14,6 +14,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private CloudServiceManager cloudServiceManager;
 
         private SerializedProperty visionProp;
+        private SerializedProperty boundingBoxesProp;
         private SerializedProperty targetCameraTypeProp;
         private SerializedProperty imageTriggerModeProp;
         private SerializedProperty resolutionProp;
@@ -26,6 +27,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             cloudServiceManager = agent.cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
 
             visionProp = serializedObject.FindProperty("vision");
+            boundingBoxesProp = serializedObject.FindProperty("boundingBoxes");
             targetCameraTypeProp = serializedObject.FindProperty("targetCameraType");
             imageTriggerModeProp = serializedObject.FindProperty("imageTriggerMode");
             resolutionProp = serializedObject.FindProperty("resolution");
@@ -129,6 +131,14 @@ namespace IVH.Core.IntelligentVirtualAgent
                 if (agent.foundationModel==FoundationModels.Unity_Gemini_VLM || agent.foundationModel == FoundationModels.Unity_OpenAI_VLM)
                 {
                     EditorGUILayout.PropertyField(visionProp);
+                    if (visionProp.boolValue == true && agent.foundationModel==FoundationModels.Unity_Gemini_VLM)
+                    {
+                        EditorGUILayout.PropertyField(boundingBoxesProp);
+                    }
+                    else
+                    {
+                        boundingBoxesProp.boolValue = false;
+                    }
                     EditorGUILayout.PropertyField(targetCameraTypeProp);
                     EditorGUILayout.PropertyField(imageTriggerModeProp);
                     EditorGUILayout.PropertyField(resolutionProp);
@@ -137,6 +147,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 else
                 {
                     visionProp.boolValue = false;
+                    boundingBoxesProp.boolValue = false;
                 }
             }
 

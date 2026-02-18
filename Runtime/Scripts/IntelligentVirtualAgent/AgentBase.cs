@@ -47,6 +47,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         [Header("Agent Vision Settings")]
         [HideInInspector] public bool vision = false;
+        [HideInInspector] public bool boundingBoxes = false;
         [HideInInspector] public TargetCameraType targetCameraType = TargetCameraType.AgentCamera;
         [HideInInspector] public ImageTriggerMode imageTriggerMode = ImageTriggerMode.Auto;
         [HideInInspector] public ImageResolution resolution = ImageResolution.VGA;
@@ -316,9 +317,12 @@ namespace IVH.Core.IntelligentVirtualAgent
             int originalWidth = webCamTexture.width;
             int originalHeight = webCamTexture.height;
 
+            float scaleFactor = 640f / webCamTexture.width;
+            scaleFactor = Mathf.Min(scaleFactor, 1.0f);
+
             // Reduced resolution (30% of the original)
-            int reducedWidth = Mathf.RoundToInt(originalWidth * 0.3f);
-            int reducedHeight = Mathf.RoundToInt(originalHeight * 0.3f);
+            int reducedWidth = Mathf.RoundToInt(originalWidth * scaleFactor);
+            int reducedHeight = Mathf.RoundToInt(originalHeight * scaleFactor);
 
             // Create a RenderTexture for downscaling
             RenderTexture renderTexture = new RenderTexture(reducedWidth, reducedHeight, 24);

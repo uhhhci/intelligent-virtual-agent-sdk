@@ -6,6 +6,7 @@ using UnityEditor;
 using IVH.Core.ServiceConnector;
 using IVH.Core.Utils;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
@@ -101,13 +102,29 @@ namespace IVH.Core.IntelligentVirtualAgent
                             {
                                 egoImageData = null;
                                 CaptureEgocentricImage(ImageHelper.GetResolution(resolution));
-                                QueryVLM_Image(userMessage, egoImageData);
+                                if (boundingBoxes == true)
+                                {
+                                    QueryVLM_Image(userMessage, egoImageData, true);
+                                }
+                                else
+                                {
+                                    QueryVLM_Image(userMessage, egoImageData);
+                                }
                             }
                             else if (targetCameraType == TargetCameraType.WebCam)
                             {
                                 webCamImageData = null;
                                 yield return CaptureWebcamImage();
+                                if (boundingBoxes == true)
+                                {
+                                    QueryVLM_Image(userMessage, webCamImageData, true);
+                                    SaveImageToFile(webCamImageData);
+                                    
+                                }
+                                else
+                                {
                                 QueryVLM_Image(userMessage, webCamImageData);
+                                }
                             }
                         }
                     }
@@ -238,11 +255,60 @@ namespace IVH.Core.IntelligentVirtualAgent
             catch (Exception ex) { Debug.LogError($"Error calling OpenAI: {ex.Message}"); }
         }
 
-        public async void QueryVLM_Image(string userMessage, byte[] imageData)
+        public async void QueryVLM_Image(string userMessage, byte[] imageData, bool requestBoundingBoxes = false)
         {
+            try
+            {
+                // 1. Primary Request: Conversational Response
+                // We force 'requestBoundingBoxes' to false to ensure we get a text response 
+                // that respects the System Prompt (persona, brevity, etc.).
+                var textResult = await cloudServiceManager.QueryVLM(
+                    userMessage,
+                    _conversation,
+                    foundationModel,
+                    imageData,
+                    null,
+                    false 
+                );
 
-            try { llmQueryResponse = await cloudServiceManager.QueryVLM(userMessage, _conversation, foundationModel, imageData); ; }
-            catch (Exception ex) { Debug.LogError($"Error calling OpenAI: {ex.Message}"); }
+                // Handle the conversational output (TTS, Animation, etc.)
+                if (textResult is string textResponse)
+                {
+                    llmQueryResponse = textResponse; 
+                }
+
+                // 2. Secondary Request: Spatial Analysis (Optional)
+                // If requested, we send a parallel/sequential request strictly for data extraction.
+                // This runs independently so the JSON format doesn't bleed into the chat.
+                if (requestBoundingBoxes)
+                {
+                    var boxResult = await cloudServiceManager.QueryVLM(
+                        userMessage,
+                        _conversation,
+                        foundationModel,
+                        imageData,
+                        null,
+                        true // Force true to trigger the specialized JSON path
+                    );
+
+                    if (boxResult is List<GeminiBoundingBoxResponse> boxes)
+                    {
+                        Debug.Log($"[Spatial] Received {boxes.Count} bounding boxes.");
+                        
+                        // Process boxes (e.g., draw UI, update internal world model)
+                        foreach (var box in boxes)
+                        {
+                            // Debug visualization or logic hook
+                            Debug.Log($"Detected: {box.Label} at {string.Join(",", box.Box2D)}");
+                            AnnotateAndSaveImage(imageData, boxes);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ConversationalAgent] Error calling Gemini VLM: {ex.Message}");
+            }
         }
 
         #endregion
@@ -337,6 +403,83 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             res = null;
             llmQueryResponse = "";
+        }
+
+        private void AnnotateAndSaveImage(byte[] sourceImageData, List<GeminiBoundingBoxResponse> boxes)
+        {
+            Texture2D texture = new Texture2D(2, 2);
+            if (!texture.LoadImage(sourceImageData)) return;
+
+            Color boxColor = Color.red;
+            int thickness = 3; 
+            int w = texture.width;
+            int h = texture.height;
+
+            foreach (var box in boxes)
+            {
+                if (box.Box2D == null || box.Box2D.Count < 4) continue;
+
+                float yMinRaw = box.Box2D[0];
+                float xMinRaw = box.Box2D[1];
+                float yMaxRaw = box.Box2D[2];
+                float xMaxRaw = box.Box2D[3];
+
+                // Horizontal and VerticalCalculation
+                // Note: Gemini VLM uses a 1000x1000 coordinate system
+                int xMin = (int)(xMinRaw / 1000f * w);
+                int xMax = (int)(xMaxRaw / 1000f * w);
+                int yMin = (int)((1f - yMaxRaw / 1000f) * h);
+                int yMax = (int)((1f - yMinRaw / 1000f) * h);
+
+                // Clamp to image bounds
+                xMin = Mathf.Clamp(xMin, 0, w - 1);
+                xMax = Mathf.Clamp(xMax, 0, w - 1);
+                yMin = Mathf.Clamp(yMin, 0, h - 1);
+                yMax = Mathf.Clamp(yMax, 0, h - 1);
+
+                DrawLine(texture, xMin, yMin, xMax, yMin, boxColor, thickness); // Bottom
+                DrawLine(texture, xMin, yMax, xMax, yMax, boxColor, thickness); // Top
+                DrawLine(texture, xMin, yMin, xMin, yMax, boxColor, thickness); // Left
+                DrawLine(texture, xMax, yMin, xMax, yMax, boxColor, thickness); // Right
+            }
+
+            texture.Apply();
+            byte[] annotatedData = texture.EncodeToPNG();
+            
+            string filename = $"annotated_{System.DateTime.Now:HHmmss}.png";
+            string filePath = Path.Combine(Application.persistentDataPath, filename);
+            File.WriteAllBytes(filePath, annotatedData);
+            Destroy(texture);
+        }
+
+        // Simple helper to draw a line of pixels
+        private void DrawLine(Texture2D tex, int x1, int y1, int x2, int y2, Color col, int thickness)
+        {
+            // Simple bounding box for the line segments
+            int xMin = Mathf.Min(x1, x2) - thickness / 2;
+            int xMax = Mathf.Max(x1, x2) + thickness / 2;
+            int yMin = Mathf.Min(y1, y2) - thickness / 2;
+            int yMax = Mathf.Max(y1, y2) + thickness / 2;
+
+            for (int x = xMin; x <= xMax; x++)
+            {
+                for (int y = yMin; y <= yMax; y++)
+                {
+                    if (x >= 0 && x < tex.width && y >= 0 && y < tex.height)
+                    {
+                        tex.SetPixel(x, y, col);
+                    }
+                }
+            }
+        }
+
+        // Saves image data to a file for debugging
+        protected void SaveImageToFile(byte[] imageData)
+        {
+            string filename = $"captured_image_{System.DateTime.Now:yyyyMMdd_HHmmss}.png";
+            string filePath = Path.Combine(Application.persistentDataPath, filename);
+    
+            File.WriteAllBytes(filePath, imageData);
         }
 
         #endregion

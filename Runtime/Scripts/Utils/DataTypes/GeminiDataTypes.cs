@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using IVH.Core.ServiceConnector;
+using UnityEngine;
 
 namespace IVH.Core.ServiceConnector
 {
@@ -83,104 +84,140 @@ namespace IVH.Core.ServiceConnector
         }
     }
 
-
-[Serializable]
-public class GeminiTool
-{
-    // The Gemini API expects 'function_declarations' to be a list.
-    // Even if we're often only adding one, it must be a list.
-    [JsonProperty("function_declarations")]
-    public List<GeminiFunctionDeclaration> FunctionDeclarations { get; set; } = new List<GeminiFunctionDeclaration>();
-
-    // Constructor to easily create a tool with a single function declaration
-    public GeminiTool(GeminiFunctionDeclaration func)
+    public class GeminiBoundingBoxResponse
     {
-        FunctionDeclarations.Add(func);
+        [JsonProperty("box_2d")]
+        public List<int> Box2D { get; set; }
+
+        [JsonProperty("label")]
+        public string Label { get; set; }
+
+        /// <summary>
+        /// Converts Gemini 0-1000 coordinates to a Unity Rect (0-1 scale).
+        /// Returns Rect(x, y, width, height) where (0,0) is Bottom-Left.
+        /// </summary>
+        public Rect GetUnityRect()
+        {
+            if (Box2D == null || Box2D.Count < 4) return Rect.zero;
+
+            // Gemini: [ymin, xmin, ymax, xmax] (0-1000 scale, 0,0 is Top-Left usually in image processing)
+            float yMin = Box2D[0] / 1000f;
+            float xMin = Box2D[1] / 1000f;
+            float yMax = Box2D[2] / 1000f;
+            float xMax = Box2D[3] / 1000f;
+
+            // Unity UI often uses Bottom-Left as 0,0. 
+            // To convert Top-Left based Y to Bottom-Left based Y:
+            // newY = 1.0f - oldY
+
+            float x = xMin;
+            float y = 1f - yMax; // Flip Y because Unity UI starts at bottom
+            float width = xMax - xMin;
+            float height = yMax - yMin;
+
+            return new Rect(x, y, width, height);
+        }
+
     }
 
-    public GeminiTool() { } // Parameterless constructor for serialization
-}
 
-// Represents a single function declaration within a GeminiTool
-[Serializable]
-public class GeminiFunctionDeclaration
-{
-    [JsonProperty("name")]
-    public string Name { get; set; }
-
-    [JsonProperty("description")]
-    public string Description { get; set; }
-
-    [JsonProperty("parameters", NullValueHandling = NullValueHandling.Ignore)]
-    public GeminiFunctionParameters Parameters { get; set; }
-
-    public GeminiFunctionDeclaration(string name, string description, GeminiFunctionParameters parameters = null)
+    [Serializable]
+    public class GeminiTool
     {
-        Name = name;
-        Description = description;
-        Parameters = parameters;
+        // The Gemini API expects 'function_declarations' to be a list.
+        // Even if we're often only adding one, it must be a list.
+        [JsonProperty("function_declarations")]
+        public List<GeminiFunctionDeclaration> FunctionDeclarations { get; set; } = new List<GeminiFunctionDeclaration>();
+
+        // Constructor to easily create a tool with a single function declaration
+        public GeminiTool(GeminiFunctionDeclaration func)
+        {
+            FunctionDeclarations.Add(func);
+        }
+
+        public GeminiTool() { } // Parameterless constructor for serialization
     }
-}
 
-// Defines the parameters for a Gemini function
-[Serializable]
-public class GeminiFunctionParameters
-{
-    [JsonProperty("type")]
-    public string Type { get; set; } = "object"; // Always "object" for function parameters
-
-    [JsonProperty("properties", NullValueHandling = NullValueHandling.Ignore)]
-    public Dictionary<string, GeminiFunctionProperty> Properties { get; set; } = new Dictionary<string, GeminiFunctionProperty>();
-
-    [JsonProperty("required", NullValueHandling = NullValueHandling.Ignore)]
-    public List<string> Required { get; set; } = new List<string>();
-
-    public GeminiFunctionParameters() { }
-}
-
-// Defines a single property within the function's parameters
-[Serializable]
-public class GeminiFunctionProperty
-{
-    [JsonProperty("type")]
-    public string Type { get; set; }
-
-    [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)]
-    public string Description { get; set; }
-
-    // For array types, you need to specify the item type using 'items'.
-    [JsonProperty("items", NullValueHandling = NullValueHandling.Ignore)]
-    public GeminiFunctionProperty Items { get; set; }
-
-    // Enums are handled by providing an 'enum' array.
-    [JsonProperty("enum", NullValueHandling = NullValueHandling.Ignore)]
-    public List<string> Enum { get; set; }
-
-    public GeminiFunctionProperty(string type, string description = null, List<string> @enum = null)
+    // Represents a single function declaration within a GeminiTool
+    [Serializable]
+    public class GeminiFunctionDeclaration
     {
-        Type = type;
-        Description = description;
-        Enum = @enum;
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("description")]
+        public string Description { get; set; }
+
+        [JsonProperty("parameters", NullValueHandling = NullValueHandling.Ignore)]
+        public GeminiFunctionParameters Parameters { get; set; }
+
+        public GeminiFunctionDeclaration(string name, string description, GeminiFunctionParameters parameters = null)
+        {
+            Name = name;
+            Description = description;
+            Parameters = parameters;
+        }
     }
-}
 
-// (Optional) This class helps you manage the entire list of tools
-// that you send in a single Gemini API request.
-// You would serialize an instance of this class to get the final JSON
-// for the "tools" field in your API request body.
-[Serializable]
-public class GeminiToolListContainer
-{
-    [JsonProperty("tools")]
-    public List<GeminiTool> Tools { get; set; } = new List<GeminiTool>();
-
-    public GeminiToolListContainer() { }
-
-    public GeminiToolListContainer(List<GeminiTool> tools)
+    // Defines the parameters for a Gemini function
+    [Serializable]
+    public class GeminiFunctionParameters
     {
-        Tools = tools;
+        [JsonProperty("type")]
+        public string Type { get; set; } = "object"; // Always "object" for function parameters
+
+        [JsonProperty("properties", NullValueHandling = NullValueHandling.Ignore)]
+        public Dictionary<string, GeminiFunctionProperty> Properties { get; set; } = new Dictionary<string, GeminiFunctionProperty>();
+
+        [JsonProperty("required", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string> Required { get; set; } = new List<string>();
+
+        public GeminiFunctionParameters() { }
     }
-}
+
+    // Defines a single property within the function's parameters
+    [Serializable]
+    public class GeminiFunctionProperty
+    {
+        [JsonProperty("type")]
+        public string Type { get; set; }
+
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)]
+        public string Description { get; set; }
+
+        // For array types, you need to specify the item type using 'items'.
+        [JsonProperty("items", NullValueHandling = NullValueHandling.Ignore)]
+        public GeminiFunctionProperty Items { get; set; }
+
+        // Enums are handled by providing an 'enum' array.
+        [JsonProperty("enum", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string> Enum { get; set; }
+
+        public GeminiFunctionProperty(string type, string description = null, List<string> @enum = null)
+        {
+            Type = type;
+            Description = description;
+            Enum = @enum;
+        }
+    }
+
+    // (Optional) This class helps you manage the entire list of tools
+    // that you send in a single Gemini API request.
+    // You would serialize an instance of this class to get the final JSON
+    // for the "tools" field in your API request body.
+    [Serializable]
+    public class GeminiToolListContainer
+    {
+        [JsonProperty("tools")]
+        public List<GeminiTool> Tools { get; set; } = new List<GeminiTool>();
+
+        public GeminiToolListContainer() { }
+
+        public GeminiToolListContainer(List<GeminiTool> tools)
+        {
+            Tools = tools;
+        }
+    }
 
 
 
@@ -232,5 +269,6 @@ public class GeminiToolListContainer
         ]
     }
     */
-    
+
+
 }
