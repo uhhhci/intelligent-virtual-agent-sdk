@@ -163,7 +163,8 @@ namespace IVH.Core.IntelligentVirtualAgent
                 string silentSetupPrompt = "System: STARTUP SEQUENCE.\n" +
                                 "1. Call 'update_avatar_state' to set your initial pose.\n" +
                                 "2. DO NOT generate any audio/speech in this turn.\n" +
-                                "3. Wait for the tool confirmation.";
+                                "3. Wait for the tool confirmation. \n" +
+                                "Thinking_Process: DISABLED; Output_Mode: AUDIO_ONLY; Latency_Optimization: MAXIMUM;INSTRUCTION: You are a real-time audio model. Do not engage in internal reasoning, chain-of-thought, or verbose planning. Output audio immediately upon receiving input. Do not generate text.";
                 _realtimeWrapper.SendTextMessage(silentSetupPrompt);
             }
             else

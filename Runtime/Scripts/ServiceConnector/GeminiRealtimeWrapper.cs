@@ -83,7 +83,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             else
             {
                 // Standard URL
-                string baseUrl = V1ALPHA_URL;
+                string baseUrl = V1BETA_URL;
                 return $"{baseUrl}?key={apiKey}";
             }
         }
@@ -179,7 +179,16 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         {
             var generationConfig = new JObject();
             generationConfig["response_modalities"] = new JArray("AUDIO");
-
+            
+            // disable thinking to improve latency -> this should work, but at the moment it is causing an internal server error. Clearly a bug from Google AI studio...
+            if(selectedModel == GeminiModelType.Flash25VertexAI){
+                var ThinkingConfig = new JObject
+                {
+                ["thinking_budget"]  = 0,
+                ["include_thoughts"] = false,  
+                };
+                generationConfig["thinking_config"]=ThinkingConfig;
+            }
             var speechConfig = new JObject();
             var voiceConfig = new JObject();
             voiceConfig["prebuilt_voice_config"] = new JObject { ["voice_name"] = voice };
@@ -192,11 +201,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 ["generation_config"] = generationConfig,
                 ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
-            // This could add 10-15% latency
-            if (affectiveAnalysis && (selectedModel == GeminiModelType.Flash25PreviewGoogleAI))
-            {
-                generationConfig["enable_affective_dialog"] = true; 
-            }
                 
             var toolsArray = new JArray();
             var tool = new JObject();
@@ -224,7 +228,10 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             {
                 setupContent["context_window_compression"] = new JObject
                 {
-                    ["sliding_window"] = new JObject()
+                    ["sliding_window"] = new JObject
+                    {
+                        ["targetTokens"] = 12800,
+                    }
                 };
             }
 
