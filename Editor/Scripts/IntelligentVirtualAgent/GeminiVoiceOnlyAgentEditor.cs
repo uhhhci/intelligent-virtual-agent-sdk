@@ -1,42 +1,51 @@
 using UnityEngine;
 using UnityEditor;
 using System;
-using IVH.Core.IntelligentVirtualAgent; 
 
-namespace IVH.Core.IntelligentVirtualAgent{
-
+namespace IVH.Core.IntelligentVirtualAgent
+{
     [CustomEditor(typeof(GeminiVoiceOnlyAgent))]
     public class GeminiVoiceOnlyAgentEditor : Editor
-    {
+    {   
+        private SerializedProperty voiceNameProp;
+        private SerializedProperty microphoneDeviceNameProp;
+
+        // Define the available Gemini voices here
+        private readonly string[] geminiVoices = { "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr" };
+
+        public void OnEnable()
+        {
+            // Find properties once when the Inspector is enabled
+            voiceNameProp = serializedObject.FindProperty("voiceName");
+            microphoneDeviceNameProp = serializedObject.FindProperty("microphoneDeviceName");
+        }
+
         public override void OnInspectorGUI()
         {
-            // 1. Update the serialized object
             serializedObject.Update();
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Gemini Configuration", EditorStyles.boldLabel);
 
-            // 2. Draw all properties EXCEPT the microphone string (we will draw that manually)
-            DrawPropertiesExcluding(serializedObject, "microphoneDeviceName");
-
-            // 3. Get the microphone property
-            SerializedProperty micProperty = serializedObject.FindProperty("microphoneDeviceName");
-
-            // 4. Create the Dropdown
-            string[] devices = Microphone.devices;
+            int selectedVoice = Array.IndexOf(geminiVoices, voiceNameProp.stringValue);
+            if (selectedVoice == -1) selectedVoice = 0; // Fallback to index 0 if the string doesn't match
             
+            selectedVoice = EditorGUILayout.Popup("Agent Voice", selectedVoice, geminiVoices);
+            voiceNameProp.stringValue = geminiVoices[selectedVoice];
+
+            DrawPropertiesExcluding(serializedObject, "m_Script", "voiceName", "microphoneDeviceName");
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Hardware Config", EditorStyles.boldLabel);
 
+            string[] devices = Microphone.devices;
+            
             if (devices.Length > 0)
             {
-                // Find current index, default to 0
-                int index = Mathf.Max(0, Array.IndexOf(devices, micProperty.stringValue));
+                int index = Mathf.Max(0, Array.IndexOf(devices, microphoneDeviceNameProp.stringValue));
 
-                // Draw the popup
                 int newIndex = EditorGUILayout.Popup("Microphone", index, devices);
-
-                // If changed, update the string property
-                if (newIndex != index || string.IsNullOrEmpty(micProperty.stringValue))
+                if (newIndex != index || string.IsNullOrEmpty(microphoneDeviceNameProp.stringValue))
                 {
-                    micProperty.stringValue = devices[newIndex];
+                    microphoneDeviceNameProp.stringValue = devices[newIndex];
                 }
             }
             else
@@ -44,7 +53,6 @@ namespace IVH.Core.IntelligentVirtualAgent{
                 EditorGUILayout.HelpBox("No Microphone devices found!", MessageType.Warning);
             }
 
-            // 5. Apply changes
             serializedObject.ApplyModifiedProperties();
         }
     }

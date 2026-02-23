@@ -1,6 +1,12 @@
 # Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
 
+## 2.1.0
+
+- Update avaliable models in ``GoogleCloudAIWrapper``.
+- Add ``voiceOnlyAgent`` and it's editor script.
+- Fix json import error in ``GeneralModelHelper``.
+
 ## 2.0.0
 - **Gemini Live 2.5 Flash API Integration**
   - Integrated **Gemini Live 2.5 Flash** from **Vertex AI** *(paid tier, low latency)* using  

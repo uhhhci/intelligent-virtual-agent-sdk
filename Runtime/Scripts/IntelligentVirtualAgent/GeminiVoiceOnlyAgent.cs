@@ -239,31 +239,15 @@ namespace IVH.Core.IntelligentVirtualAgent
         // --- UI Logging ---
 
         private void HandleTextReceived(string text)
-
         {
-
             if (string.IsNullOrEmpty(text)) return;
-
-
-
-            // Simple Filter: Hide text that looks like actions *action* or markdown **bold**
-
             if (!showThinkingProcess)
-
             {
 
                 if (text.Contains("**") || text.StartsWith("*")) return;
-
-                // Heuristic: If text is very long and contains "processing", "instruction", skip it
-
                 if (text.ToLower().Contains("processing the initial instruction")) return;
-
             }
-
-
-
             AppendLog($"<color=cyan>Gemini:</color> {text}");
-
         }
 
 
@@ -273,13 +257,9 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
 
             if (logTextDisplay != null)
-
             {
 
                 logTextDisplay.text += $"\n\n{message}";
-
-               
-
                 if (scrollRect != null)
 
                 {

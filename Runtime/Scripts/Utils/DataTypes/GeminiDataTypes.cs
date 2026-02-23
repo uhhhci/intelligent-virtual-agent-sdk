@@ -12,7 +12,10 @@ namespace IVH.Core.ServiceConnector
         // https://ai.google.dev/gemini-api/docs/models/gemini#gemini-2.0-flash
         // Gemini_1_5_Pro,// gemini-1.5-pro
         // Gemini_2_Exp,  // gemini-2.0-flash-exp
+        Gemini2_5_Flash_Pro,
+        Gemini3_Flash_Preview,
         Gemini2_5_Flash_Lite //gemini-2.5-flash-lite
+
     }
 
     public enum GeminiMessageRole
@@ -78,6 +81,10 @@ namespace IVH.Core.ServiceConnector
                 //     return "gemini-1.5-pro";
                 // case GeminiModels.Gemini_2_Exp:
                 //     return "gemini-2.0-flash-exp";
+                case GeminiModels.Gemini2_5_Flash_Pro:
+                    return "gemini-2.5-flash";
+                case GeminiModels.Gemini3_Flash_Preview:
+                    return "gemini-3-flash-preview";
                 case GeminiModels.Gemini2_5_Flash_Lite:
                     return "gemini-2.5-flash-lite";
                 default:

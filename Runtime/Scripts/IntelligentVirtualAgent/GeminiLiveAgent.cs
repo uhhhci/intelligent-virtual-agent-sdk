@@ -102,12 +102,9 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private IEnumerator WaitForGreetingToFinishAndStartVision()
         {
-            // A. Wait for the handshake state (Agent prepares response)
-            // We give it a generous timeout (e.g. 10 seconds max wait)
             float timeout = 10f;
             while (timeout > 0)
             {
-                // We check if the Agent has started playing the "Hello" audio
                 if (_isPlaying && agentAudioSource.isPlaying)
                 {
                     break; // Audio started!
@@ -115,10 +112,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 timeout -= 0.1f;
                 yield return new WaitForSeconds(0.1f);
             }
-
-            // B. Now wait for the "Hello" to FINISH playing.
-            // This ensures we don't send an image while the agent is speaking the greeting,
-            // which would cause an "Interruption" signal on Vertex and cut the audio off.
             while (_isPlaying && agentAudioSource.isPlaying)
             {
                 yield return new WaitForSeconds(0.2f);
@@ -156,7 +149,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private IEnumerator SendGreetingDelayed()
         {
             // Vertex AI needs a split second to settle the session state after setup_complete
-            yield return new WaitForSeconds(0.8f);
+            yield return new WaitForSeconds(1.0f);
             
             if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI){
                 // vertex AI handles system starts differently 
