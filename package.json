@@ -12,9 +12,7 @@
   },
   "dependencies": {
     "com.unity.animation.rigging": "1.2.1",
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.oculus.unity.integration.lip-sync": "29.0.0"
-  },
+    "com.unity.nuget.newtonsoft-json": "3.2.1"  },
     "samples": [
     {
       "displayName": "Basic Sample Scene ",
