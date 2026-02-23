@@ -49,6 +49,8 @@ Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual h
 #### You Need To Import These Manually
 * [com.meta.xr.sdk.interaction.ovr (69.0.1)](https://assetstore.unity.com/packages/tools/integration/meta-xr-interaction-sdk-265014) (Add by name: `com.meta.xr.sdk.interaction.ovr`)
 * [com.oculus.unity.integration.lip-sync (29.0.0)](https://openupm.com/packages/com.oculus.unity.integration.lip-sync/) (Add from git URL: `https://github.com/Trisgram/com.oculus.unity.integration.lip-sync.git`)
+* [com.gpt4all.unity](https://github.com/Macoron/gpt4all.unity) (Add package from git URL: `https://github.com/Macoron/gpt4all.unity.git?path=/Packages/com.gpt4all.unity`)
+* [com.whisper.unity](https://github.com/Macoron/whisper.unity) (Add from git URL: `https://github.com/Macoron/whisper.unity.git?path=/Packages/com.whisper.unity`)
 
 ### Main features
 
