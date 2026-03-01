@@ -86,7 +86,8 @@ namespace IVH.Core.IntelligentVirtualAgent
                 {
                     OriginalTool = tool,
                     Method = method,
-                    Parameters = method.GetParameters(), 
+                    Parameters = method.GetParameters(),
+                    SchemaDeclaration = decl // <-- Add this line!
                 };
             }
         }
