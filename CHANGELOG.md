@@ -1,6 +1,11 @@
 # Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
 
+## 2.2.0
+- [EXPERIMENTAL] Add generic tool calling to ``voiceOnlyAgent``
+  - Only support in ``gemini-2.5-flash-native-audio-preview-12-2025``
+  - To be added in embodied IVA later
+
 ## 2.1.0
 
 - Update avaliable models in ``GoogleCloudAIWrapper``.
