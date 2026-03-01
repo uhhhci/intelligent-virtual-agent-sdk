@@ -17,31 +17,24 @@ namespace IVH.Core.IntelligentVirtualAgent
 {
 
     [RequireComponent(typeof(GeminiRealtimeWrapper))]
-
     [RequireComponent(typeof(AudioSource))]
-
     public class GeminiVoiceOnlyAgent : MonoBehaviour
 
     {
 
         [Header("Gemini Configuration")]
-
         public string voiceName = "Puck";
-
         public bool autoConnectOnStart = true;
 
        
 
         [Header("Settings")]
-
         public bool showThinkingProcess = false; // SET TO FALSE TO HIDE THINKING
 
        
 
         [Header("Agent Persona")]
-
         [TextArea(3, 10)]
-
         public string systemInstruction = "You are a helpful AI voice assistant.";
 
 
@@ -180,10 +173,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             _isSessionReady = false;
 
-           
-
-            // STRICT Prompt to prevent thinking logs
-
             string noThinkingPrompt = "";
 
             if (!showThinkingProcess)
@@ -197,20 +186,15 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             string finalPrompt = systemInstruction + noThinkingPrompt;
 
-            // --- NEW LOGIC: Check for Dynamic Tools ---
             var toolManager = GetComponent<GeminiToolManager>();
             if (toolManager != null && toolManager.definedTools.Count > 0)
             {
-                // Use the new extended wrapper method
                 _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolManager.GetDynamicToolDeclarations());
             }
             else
             {
-                // Fallback to your original connection method
                 _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
             }
-
-           // _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
 
         }
 
@@ -226,10 +210,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             StartMicrophone();
 
-           
-
-            // Wake up Vertex AI models
-
             if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
 
             {
@@ -239,10 +219,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
         }
-
-
-
-        // --- UI Logging ---
 
         private void HandleTextReceived(string text)
         {

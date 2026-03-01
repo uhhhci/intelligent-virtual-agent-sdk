@@ -419,7 +419,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         // 3. Add the setup method that merges hardcoded and dynamic tools
         private async Task SendSetupWithDynamicTools(string model, string systemPrompt, string voice, JArray dynamicFunctionDeclarations)
         {
-            // 1. THE MISSING PIECE: We must include your Audio & Voice settings!
             var generationConfig = new JObject();
             generationConfig["response_modalities"] = new JArray("AUDIO");
             
@@ -439,27 +438,23 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             speechConfig["voice_config"] = voiceConfig;
             generationConfig["speech_config"] = speechConfig;
 
-            // 2. Build Setup Payload
             var setupContent = new JObject
             {
                 ["model"] = IsVertexModel() ? model : $"models/{model}",
-                ["generation_config"] = generationConfig, // <-- I FORGOT THIS LINE PREVIOUSLY!
+                ["generation_config"] = generationConfig, 
                 ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
             };
 
-            // 3. Build Tools
             var toolsArray = new JArray();
             var toolWrapper = new JObject();
             var functionDeclarations = new JArray();
 
-            // Re-inject your legacy hardcoded tool so we don't break your other scripts
             functionDeclarations.Add(new JObject { 
                 ["name"] = "update_avatar_state", 
                 ["description"] = "Change the avatar's physical behavior.",
                 ["parameters"] = JObject.Parse("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"emotion\":{\"type\":\"string\"},\"gaze\":{\"type\":\"string\"}},\"required\":[\"action\",\"emotion\",\"gaze\"]}")
             });
 
-            // Inject your new drag-and-drop tools
             foreach(var dt in dynamicFunctionDeclarations) {
                 functionDeclarations.Add(dt);
             }
@@ -474,7 +469,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             
             await SendJsonAsync(setupData);
         }
-        // 4. Add a generic tool response sender
         public async Task SendGenericToolResponseAsync(string id, string name, object responsePayload)
         {
             var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = name, response = responsePayload } } } };

@@ -47,10 +47,8 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 if (string.IsNullOrEmpty(tool.toolName) || tool.targetComponent == null) continue;
 
-                // 1. Calculate the safe name ONCE
                 string safeToolName = System.Text.RegularExpressions.Regex.Replace(tool.toolName, @"[^a-zA-Z0-9_-]", "_").ToLower();
 
-                // 2. Perform Reflection ONCE
                 MethodInfo method = tool.targetComponent.GetType().GetMethod(tool.targetMethodName, BindingFlags.Instance | BindingFlags.Public);
                 if (method == null)
                 {
@@ -58,7 +56,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                     continue;
                 }
 
-                // 3. Pre-build the JSON schema ONCE
                 var decl = new JObject
                 {
                     ["name"] = safeToolName,
@@ -85,13 +82,11 @@ namespace IVH.Core.IntelligentVirtualAgent
                     decl["parameters"] = new JObject { ["type"] = "object", ["properties"] = new JObject() };
                 }
 
-                // 4. Save to Cache
                 _toolCache[safeToolName] = new CachedTool
                 {
                     OriginalTool = tool,
                     Method = method,
-                    Parameters = method.GetParameters(), // Cache parameter info array
-                    SchemaDeclaration = decl
+                    Parameters = method.GetParameters(), 
                 };
             }
         }
