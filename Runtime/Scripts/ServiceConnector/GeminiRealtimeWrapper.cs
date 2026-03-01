@@ -37,6 +37,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public Action<string> OnTextReceived;
         public Action<string, string, string> OnCommandReceived;
         
+        // 1. Add a generic event for dynamic tool calls
+        public Action<string, string, JToken> OnGenericToolCallReceived;
+
         public bool verboseLogging = true;
         public bool IsConnected => _webSocket != null && _webSocket.State == WebSocketState.Open;
 
@@ -346,7 +349,15 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                                 string id = call["id"]?.ToString();
 
                                 EnqueueMainThread(() => OnCommandReceived?.Invoke(act, emo, gaze));
-                                _ = SendToolResponse(id); 
+                                _ = SendToolResponse(id);
+                            }
+                            else
+                            {
+                                // handle generic function calling event other than updating avatar states
+                                string toolName = call["name"]?.ToString();
+                                string id = call["id"]?.ToString();
+                                JToken args = call["args"];
+                                EnqueueMainThread(() => OnGenericToolCallReceived?.Invoke(id, toolName, args));
                             }
                         }
                     }
@@ -383,5 +394,92 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         }
 
         private void EnqueueMainThread(Action action) { lock (_queueLock) { _mainThreadQueue.Enqueue(action); } }
+
+        // 2. Add an extended connection method that takes dynamic tools
+        public async Task ConnectWithDynamicToolsAsync(string systemInstruction, string voiceName, JArray dynamicToolsDeclaration)
+        {
+            await DisconnectAsync();
+            string modelId = GetModelString();
+            string finalUri = IsVertexModel() ? GetUrl("vertex_project_id_placeholder") : GetUrl(); 
+            // Note: ensure your auth logic from your existing ConnectAsync applies here
+
+            _webSocket = new ClientWebSocket();
+            if (IsVertexModel()) _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
+            _cancellationTokenSource = new CancellationTokenSource();
+
+            try
+            {
+                await _webSocket.ConnectAsync(new Uri(finalUri), CancellationToken.None);
+                _ = ReceiveLoop();
+                await SendSetupWithDynamicTools(modelId, systemInstruction, voiceName, dynamicToolsDeclaration);
+            }
+            catch (Exception e) { Debug.LogError($"Connection Error: {e.Message}"); }
+        }
+
+        // 3. Add the setup method that merges hardcoded and dynamic tools
+        private async Task SendSetupWithDynamicTools(string model, string systemPrompt, string voice, JArray dynamicFunctionDeclarations)
+        {
+            // 1. THE MISSING PIECE: We must include your Audio & Voice settings!
+            var generationConfig = new JObject();
+            generationConfig["response_modalities"] = new JArray("AUDIO");
+            
+            if(selectedModel == GeminiModelType.Flash25VertexAI)
+            {
+                var ThinkingConfig = new JObject
+                {
+                    ["thinking_budget"]  = 0,
+                    ["include_thoughts"] = false,  
+                };
+                generationConfig["thinking_config"] = ThinkingConfig;
+            }
+            
+            var speechConfig = new JObject();
+            var voiceConfig = new JObject();
+            voiceConfig["prebuilt_voice_config"] = new JObject { ["voice_name"] = voice };
+            speechConfig["voice_config"] = voiceConfig;
+            generationConfig["speech_config"] = speechConfig;
+
+            // 2. Build Setup Payload
+            var setupContent = new JObject
+            {
+                ["model"] = IsVertexModel() ? model : $"models/{model}",
+                ["generation_config"] = generationConfig, // <-- I FORGOT THIS LINE PREVIOUSLY!
+                ["system_instruction"] = new JObject { ["parts"] = new JArray(new JObject { ["text"] = systemPrompt }) }
+            };
+
+            // 3. Build Tools
+            var toolsArray = new JArray();
+            var toolWrapper = new JObject();
+            var functionDeclarations = new JArray();
+
+            // Re-inject your legacy hardcoded tool so we don't break your other scripts
+            functionDeclarations.Add(new JObject { 
+                ["name"] = "update_avatar_state", 
+                ["description"] = "Change the avatar's physical behavior.",
+                ["parameters"] = JObject.Parse("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"emotion\":{\"type\":\"string\"},\"gaze\":{\"type\":\"string\"}},\"required\":[\"action\",\"emotion\",\"gaze\"]}")
+            });
+
+            // Inject your new drag-and-drop tools
+            foreach(var dt in dynamicFunctionDeclarations) {
+                functionDeclarations.Add(dt);
+            }
+
+            toolWrapper["function_declarations"] = functionDeclarations;
+            toolsArray.Add(toolWrapper);
+            setupContent["tools"] = toolsArray;
+
+            var setupData = new JObject { ["setup"] = setupContent };
+
+            if (verboseLogging) Debug.Log($"Sending Setup: {setupData.ToString(Newtonsoft.Json.Formatting.None)}");
+            
+            await SendJsonAsync(setupData);
+        }
+        // 4. Add a generic tool response sender
+        public async Task SendGenericToolResponseAsync(string id, string name, object responsePayload)
+        {
+            var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = name, response = responsePayload } } } };
+            await SendJsonAsync(msg);
+        }
+
     }
 }

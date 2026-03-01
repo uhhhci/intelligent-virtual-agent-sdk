@@ -195,16 +195,22 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
 
+            string finalPrompt = systemInstruction + noThinkingPrompt;
 
-            string finalPrompt = systemInstruction +
+            // --- NEW LOGIC: Check for Dynamic Tools ---
+            var toolManager = GetComponent<GeminiToolManager>();
+            if (toolManager != null && toolManager.definedTools.Count > 0)
+            {
+                // Use the new extended wrapper method
+                _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolManager.GetDynamicToolDeclarations());
+            }
+            else
+            {
+                // Fallback to your original connection method
+                _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+            }
 
-                               "\n\nSYSTEM_NOTE: You are a voice-only interface. DO NOT call 'update_avatar_state'." +
-
-                               noThinkingPrompt;
-
-
-
-            _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+           // _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
 
         }
 
