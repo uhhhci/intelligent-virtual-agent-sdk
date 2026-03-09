@@ -17,31 +17,24 @@ namespace IVH.Core.IntelligentVirtualAgent
 {
 
     [RequireComponent(typeof(GeminiRealtimeWrapper))]
-
     [RequireComponent(typeof(AudioSource))]
-
-    public class GeminiVoiceOnlyAgent : MonoBehaviour
+    public class GeminiVoiceOnlyAgent : MonoBehaviour, IGeminiAgent
 
     {
 
         [Header("Gemini Configuration")]
-
         public string voiceName = "Puck";
-
         public bool autoConnectOnStart = true;
 
        
 
         [Header("Settings")]
-
         public bool showThinkingProcess = false; // SET TO FALSE TO HIDE THINKING
 
        
 
         [Header("Agent Persona")]
-
         [TextArea(3, 10)]
-
         public string systemInstruction = "You are a helpful AI voice assistant.";
 
 
@@ -55,7 +48,8 @@ namespace IVH.Core.IntelligentVirtualAgent
 
 
         [Header("VAD & Interruption")]
-
+        [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
+        public bool enableVocalInterruption = true;
         [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
 
         public bool useVocalFrequencyFilter = true;
@@ -180,10 +174,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             _isSessionReady = false;
 
-           
-
-            // STRICT Prompt to prevent thinking logs
-
             string noThinkingPrompt = "";
 
             if (!showThinkingProcess)
@@ -195,16 +185,17 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
 
+            string finalPrompt = systemInstruction + noThinkingPrompt;
 
-            string finalPrompt = systemInstruction +
-
-                               "\n\nSYSTEM_NOTE: You are a voice-only interface. DO NOT call 'update_avatar_state'." +
-
-                               noThinkingPrompt;
-
-
-
-            _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+            var toolManager = GetComponent<GeminiToolManager>();
+            if (toolManager != null && toolManager.definedTools.Count > 0)
+            {
+                _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolManager.GetDynamicToolDeclarations());
+            }
+            else
+            {
+                _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+            }
 
         }
 
@@ -220,10 +211,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             StartMicrophone();
 
-           
-
-            // Wake up Vertex AI models
-
             if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
 
             {
@@ -233,10 +220,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
         }
-
-
-
-        // --- UI Logging ---
 
         private void HandleTextReceived(string text)
         {
@@ -384,7 +367,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                    
 
-                    if (_isPlaying)
+                    if (_isPlaying && enableVocalInterruption)
 
                     {
 

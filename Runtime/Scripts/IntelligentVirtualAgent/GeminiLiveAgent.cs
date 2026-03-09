@@ -10,7 +10,9 @@ using System.Text.RegularExpressions;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
-    public class GeminiLiveAgent : AgentBase
+    public interface IGeminiAgent { }
+    [RequireComponent(typeof(GeminiRealtimeWrapper))]
+    public class GeminiLiveAgent : AgentBase, IGeminiAgent
     {
         [Header("Gemini Configuration")]
         public string voiceName = "Puck"; 
@@ -19,8 +21,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Header("Audio Input")]
         public string microphoneDeviceName;
         [Range(0.1f, 10f)] public float inputGain = 2.0f; 
-        
         [Header("VAD & Interruption")]
+        [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
+        public bool enableVocalInterruption = true;
+
         [Tooltip("Volume threshold (0.0 to 1.0) required to trigger voice detection.")]
         [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
         
@@ -65,7 +69,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _fullTranscript.Append(text);
                 Debug.Log($"<color=white>Gemini:</color> {text}"); 
             };
-
             _realtimeWrapper.OnCommandReceived += (act, emo, gaze) => {
                 Debug.Log($"<color=cyan>CMD:</color> {act}");
                 if(!string.IsNullOrEmpty(act) && act != "none") PerformAction(act);
@@ -94,11 +97,32 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
 
         public void Connect()
+
         {
+
             _isSessionReady = false;
+            string noThinkingPrompt = "";
+            noThinkingPrompt = " STRICT RULE: Do not output internal thoughts, markdown, or verbose planning text. Output direct speech text only.";
             string dynamicPrompt = BuildSystemPrompt();
-            _ = _realtimeWrapper.ConnectAsync(dynamicPrompt, voiceName);
+
+            string finalPrompt = dynamicPrompt + noThinkingPrompt;
+            var toolManager = GetComponent<GeminiToolManager>();
+            if (toolManager != null && toolManager.definedTools.Count > 0)
+            {
+                _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolManager.GetDynamicToolDeclarations());
+            }
+            else
+            {
+                _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+            }
+
         }
+        // public void Connect()
+        // {
+        //     _isSessionReady = false;
+        //     string dynamicPrompt = BuildSystemPrompt();
+        //     _ = _realtimeWrapper.ConnectAsync(dynamicPrompt, voiceName);
+        // }
 
         private IEnumerator WaitForGreetingToFinishAndStartVision()
         {
@@ -119,7 +143,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             
             Debug.Log("<color=cyan>Greeting Finished. Vision Stream ACTIVE.</color>");
             
-            // C. NOW we are safe to open the floodgates.
             _handshakeComplete = true; 
             _visionCoroutine = StartCoroutine(AutoCaptureLoop());
         }
@@ -148,16 +171,17 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
         private IEnumerator SendGreetingDelayed()
         {
-            // Vertex AI needs a split second to settle the session state after setup_complete
             yield return new WaitForSeconds(1.0f);
             
-            if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI){
-                // vertex AI handles system starts differently 
+            if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
+            {
+                // We MUST force the initial tool call to kickstart Vertex's state machine
                 string silentSetupPrompt = "System: STARTUP SEQUENCE.\n" +
-                                "1. Call 'update_avatar_state' to set your initial pose.\n" +
-                                "2. DO NOT generate any audio/speech in this turn.\n" +
-                                "3. Wait for the tool confirmation. \n" +
-                                "Thinking_Process: DISABLED; Output_Mode: AUDIO_ONLY; Latency_Optimization: MAXIMUM;INSTRUCTION: You are a real-time audio model. Do not engage in internal reasoning, chain-of-thought, or verbose planning. Output audio immediately upon receiving input. Do not generate text.";
+                    "1. Call 'update_avatar_state' to set your initial pose.\n" +
+                    "2. Wait for the tool confirmation.\n" +
+                    "3. After confirmation, verbally greet the user.\n" +
+                    "INSTRUCTION: You are a real-time audio model. Output audio. Do not generate text.";
+                    
                 _realtimeWrapper.SendTextMessage(silentSetupPrompt);
             }
             else
@@ -165,6 +189,23 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _realtimeWrapper.SendTextMessage("System: Session started. Call update_avatar_state ONCE and Greet the user.");   
             }
         }
+        // private IEnumerator SendGreetingDelayed()
+        // {
+        //     // Vertex AI needs a split second to settle the session state after setup_complete
+        //     yield return new WaitForSeconds(1.0f);
+            
+        //     if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
+        //     {
+        //         // RELAXED PROMPT: We ask it to initialize the avatar, but leave it free to think and use tools.
+        //         string setupPrompt = "System: Session started. Please initialize your state by calling 'update_avatar_state'. " +
+        //                             "After receiving confirmation, verbally greet the user. You are free to use other available tools as necessary.";
+        //         _realtimeWrapper.SendTextMessage(setupPrompt);
+        //     }
+        //     else
+        //     {
+        //         _realtimeWrapper.SendTextMessage("System: Session started. Call update_avatar_state ONCE, wait for confirmation, and then Greet the user.");   
+        //     }
+        // }
         private IEnumerator AutoCaptureLoop()
         {
             while (_isSessionReady && _realtimeWrapper.IsConnected)
@@ -174,7 +215,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 yield return new WaitForSeconds(visionUpdateFrequency);
             }
         }
-        // --- Microphone & VAD Logic ---
 
         private void StartMicrophone()
         {
@@ -214,7 +254,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                 // --- 2. INTERRUPTION TRIGGER ---
                 // Only interrupt if the agent is talking AND we detected actual speech (not just noise)
-                if (_isPlaying && detectedSpeech)
+                if (_isPlaying && detectedSpeech && enableVocalInterruption)
                 {
                     Debug.Log($"<color=yellow>INTERRUPTING: Speech Detected</color>");
                     InterruptPlayback();
@@ -343,12 +383,12 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information: {additionalDescription}.");
-            
+            // Inside BuildSystemPrompt()
             sb.AppendLine("SYSTEM RULES:");
-            sb.AppendLine("1. You control a 3D avatar. You MUST call the function 'update_avatar_state' ONCE at the start of your turn to set your expression.");
-            sb.AppendLine("2. DO NOT call the function more than once per turn.");
-            sb.AppendLine("3. After calling the tool, proceed immediately to your spoken response.");
-
+            sb.AppendLine("1. You control a 3D avatar. ONLY call 'update_avatar_state' if your emotional state or physical action genuinely needs to change based on the conversation.");
+            sb.AppendLine("2. DO NOT call 'update_avatar_state' at the start of every turn. If your state hasn't changed, just speak.");
+            sb.AppendLine("3. If the user's request requires using other available tools, you may call them.");
+            sb.AppendLine("4. Do not pause your speech to narrate your tool calls. Call the necessary tools and deliver your spoken response normally."); 
             // Logic for Affective Analysis support
             if (_realtimeWrapper.affectiveAnalysis)
             {
