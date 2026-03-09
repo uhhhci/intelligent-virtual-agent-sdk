@@ -1,6 +1,6 @@
 {
   "name": "de.uhh.hci.ivh.core",
-  "version": "2.1.0",
+  "version": "2.2.1",
   "displayName": "Intelligent Virtual Human SDK Core",
   "description": "Core package of Intelligent Virtual Human SDK",
   "unity": "2022.3",
@@ -12,8 +12,7 @@
   },
   "dependencies": {
     "com.unity.animation.rigging": "1.2.1",
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
-    "com.oculus.unity.integration.lip-sync": "29.0.0"
+    "com.unity.nuget.newtonsoft-json": "3.2.1"  
   },
     "samples": [
     {
