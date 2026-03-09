@@ -395,13 +395,11 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         private void EnqueueMainThread(Action action) { lock (_queueLock) { _mainThreadQueue.Enqueue(action); } }
 
-        // 2. Add an extended connection method that takes dynamic tools
         public async Task ConnectWithDynamicToolsAsync(string systemInstruction, string voiceName, JArray dynamicToolsDeclaration)
         {
             await DisconnectAsync();
             string modelId = GetModelString();
             string finalUri = IsVertexModel() ? GetUrl("vertex_project_id_placeholder") : GetUrl(); 
-            // Note: ensure your auth logic from your existing ConnectAsync applies here
 
             _webSocket = new ClientWebSocket();
             if (IsVertexModel()) _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
@@ -416,7 +414,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             catch (Exception e) { Debug.LogError($"Connection Error: {e.Message}"); }
         }
 
-        // 3. Add the setup method that merges hardcoded and dynamic tools
         private async Task SendSetupWithDynamicTools(string model, string systemPrompt, string voice, JArray dynamicFunctionDeclarations)
         {
             var generationConfig = new JObject();

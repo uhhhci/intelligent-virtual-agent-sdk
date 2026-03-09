@@ -8,7 +8,7 @@ using IVH.Core.IntelligentVirtualAgent.Tools;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
-    [RequireComponent(typeof(GeminiVoiceOnlyAgent))]
+    [RequireComponent(typeof(IGeminiAgent))]
     public class GeminiToolManager : MonoBehaviour
     {
         public List<GeminiDynamicTool> definedTools = new List<GeminiDynamicTool>();

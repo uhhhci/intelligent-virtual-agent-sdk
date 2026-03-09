@@ -18,7 +18,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
     [RequireComponent(typeof(GeminiRealtimeWrapper))]
     [RequireComponent(typeof(AudioSource))]
-    public class GeminiVoiceOnlyAgent : MonoBehaviour
+    public class GeminiVoiceOnlyAgent : MonoBehaviour, IGeminiAgent
 
     {
 
@@ -48,7 +48,8 @@ namespace IVH.Core.IntelligentVirtualAgent
 
 
         [Header("VAD & Interruption")]
-
+        [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
+        public bool enableVocalInterruption = true;
         [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
 
         public bool useVocalFrequencyFilter = true;
@@ -366,7 +367,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                    
 
-                    if (_isPlaying)
+                    if (_isPlaying && enableVocalInterruption)
 
                     {
 
