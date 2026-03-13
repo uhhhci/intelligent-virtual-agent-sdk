@@ -170,19 +170,14 @@ namespace IVH.Core.Actions
             }
         }
 
-        // OnAnimatorIK is called by the Animator component
         void OnAnimatorIK(int layerIndex)
         {
             if (animator == null || !animator.avatar.isHuman) return;
 
-            // Set the weight for the head IK
-            // This makes the head turn towards the target
-            animator.SetLookAtWeight(headLookWeight, 0f, 1f, 0f, 0f); // weight, body, head, eyes, clamp
+            animator.SetLookAtWeight(headLookWeight, 0f, 1f, 0f, 1f); 
 
-            // Set the position the head should look at
             animator.SetLookAtPosition(currentHeadLookAtPosition);
         }
-
         // Helper method to approximate eye center position
         // For more accuracy, consider getting the actual eye bones from the rig
         // or a specifically placed GameObject for the eye center.

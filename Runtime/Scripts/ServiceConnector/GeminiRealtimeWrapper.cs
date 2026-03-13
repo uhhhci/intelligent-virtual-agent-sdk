@@ -36,6 +36,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public Action<byte[]> OnAudioReceived;
         public Action<string> OnTextReceived;
         public Action<string, string, string> OnCommandReceived;
+        public Action<float, float, float, bool> OnMoveCommand; // angle, distance, speed, faceMovementDirection
         
         // 1. Add a generic event for dynamic tool calls
         public Action<string, string, JToken> OnGenericToolCallReceived;
@@ -106,7 +107,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             }
         }
 
-        public async Task ConnectAsync(string systemInstruction, string voiceName)
+        public async Task ConnectAsync(string systemInstruction, string voiceName, bool hasLocomotion=false)
         {
             await DisconnectAsync();
 
@@ -158,7 +159,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 await _webSocket.ConnectAsync(new Uri(finalUri), CancellationToken.None);
                 
                 _ = ReceiveLoop();
-                await SendSetupWithGenericTool(modelId, systemInstruction, voiceName);
+                await SendSetupWithGenericTool(modelId, systemInstruction, voiceName, hasLocomotion);
             }
             catch (Exception e) { Debug.LogError($"Connection Error: {e.Message}"); }
         }
@@ -178,7 +179,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             }
         }
 
-        private async Task SendSetupWithGenericTool(string model, string systemPrompt, string voice)
+        private async Task SendSetupWithGenericTool(string model, string systemPrompt, string voice, bool hasLocomotion=false)
         {
             var generationConfig = new JObject();
             generationConfig["response_modalities"] = new JArray("AUDIO");
@@ -223,9 +224,46 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     ["required"] = new JArray("action", "emotion", "gaze")
                 }
             };
-            tool["function_declarations"] = new JArray(avatarFunc);
-            toolsArray.Add(tool);
-            setupContent["tools"] = toolsArray;
+            
+            if(hasLocomotion){
+                var moveFunc = new JObject
+                {
+                    ["name"] = "move_agent",
+                    ["description"] = "Move yourself physically in the 3D environment. Interpret the user's natural language intent into a precise angle, distance, and speed. The angle is relative to YOUR current forward-facing direction: 0 = straight ahead, 90 = your right, -90 = your left, 180 = directly behind you. Set faceMovementDirection to true when the user implies you should turn to face the movement direction first (e.g. 'turn around and walk away', 'run away', 'walk over there'). Set it to false when the user implies you should maintain your current facing (e.g. 'step back', 'back up', 'move to the left a bit').",
+                    ["parameters"] = new JObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JObject
+                        {
+                            ["angle"] = new JObject
+                            {
+                                ["type"] = "number",
+                                ["description"] = "Movement angle in degrees relative to your forward direction. 0 = forward, 90 = right, -90 = left, 180 = behind. Any value from -180 to 180."
+                            },
+                            ["distance"] = new JObject
+                            {
+                                ["type"] = "number",
+                                ["description"] = "Distance in meters. Small step ~1-2, normal step ~3, large movement 5 or more."
+                            },
+                            ["speed"] = new JObject
+                            {
+                                ["type"] = "number",
+                                ["description"] = "Speed in m/s. 0.5 = cautious/slow, 1.0 = normal walk, 2 = run/jog"
+                            },
+                            ["faceMovementDirection"] = new JObject
+                            {
+                                ["type"] = "boolean",
+                                ["description"] = "If true, turn to face the movement direction before walking (e.g. 'turn around and walk away', 'run away'). If false, maintain current facing and use strafe/backward movement (e.g. 'step back', 'back up')."
+                            }
+                        },
+                        ["required"] = new JArray("angle", "distance", "speed", "faceMovementDirection")
+                    }
+                    };
+                tool["function_declarations"] = new JArray(avatarFunc, moveFunc);
+                toolsArray.Add(tool);
+                setupContent["tools"] = toolsArray;
+            }
+
 
             if (contextWindowSliding)
             {
@@ -267,9 +305,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         }
 
 
-        private async Task SendToolResponse(string id)
+        private async Task SendToolResponse(string id, string functionName = "update_avatar_state")
         {
-            var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = "update_avatar_state", response = new { status = "ok" } } } } };
+            var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = functionName, response = new { status = "ok" } } } } };
             await SendJsonAsync(msg);
         }
 
@@ -340,24 +378,36 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     {
                         foreach (var call in fnCalls)
                         {
-                            if (call["name"]?.ToString() == "update_avatar_state")
+                            string fnName = call["name"]?.ToString();
+                            string callId = call["id"]?.ToString();
+
+
+                            if (fnName == "update_avatar_state")
                             {
                                 var args = call["args"];
                                 string act = args?["action"]?.ToString() ?? "";
                                 string emo = args?["emotion"]?.ToString() ?? "";
                                 string gaze = args?["gaze"]?.ToString() ?? "";
-                                string id = call["id"]?.ToString();
 
                                 EnqueueMainThread(() => OnCommandReceived?.Invoke(act, emo, gaze));
-                                _ = SendToolResponse(id);
+                                _ = SendToolResponse(callId); 
+                            }
+                            else if (fnName == "move_agent")
+                            {
+                                var args = call["args"];
+                                string dir = args?["direction"]?.ToString() ?? "Backward";
+                                float angle = args["angle"]?.Value<float>() ?? 0f;
+                                float distance = args["distance"]?.Value<float>() ?? 1.0f;
+                                float speed = args["speed"]?.Value<float>() ?? 1.0f;
+                                bool faceMovementDirection = args["faceMovementDirection"]?.Value<bool>() ?? true;
+
+                                EnqueueMainThread(() => OnMoveCommand?.Invoke(angle, distance, speed, faceMovementDirection));
+                                _ = SendToolResponse(callId, "move_agent");
                             }
                             else
                             {
-                                // handle generic function calling event other than updating avatar states
-                                string toolName = call["name"]?.ToString();
-                                string id = call["id"]?.ToString();
                                 JToken args = call["args"];
-                                EnqueueMainThread(() => OnGenericToolCallReceived?.Invoke(id, toolName, args));
+                                EnqueueMainThread(() => OnGenericToolCallReceived?.Invoke(callId, fnName, args));
                             }
                         }
                     }

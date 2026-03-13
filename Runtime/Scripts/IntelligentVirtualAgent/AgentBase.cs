@@ -10,6 +10,7 @@ using UnityEngine.UI;
 using System.Runtime.Versioning;
 using System.ComponentModel.Design.Serialization;
 using System.Threading.Tasks;
+using UnityEngine.AI;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
@@ -80,6 +81,9 @@ namespace IVH.Core.IntelligentVirtualAgent
         [HideInInspector] public AgentFacialExpressionAnimator faceAnimator;
         [HideInInspector] public EmotionHandler emotionHandler;
         [HideInInspector] public EyeGazeController eyeGazeController;
+        [Tooltip("Enable basic locomotion of the IVA, only available for Mixamo and CC4 characters. A nav mesh object needs to be available in the scene ")]
+        [HideInInspector] public bool enableLocomotion = false; 
+        [HideInInspector] public AgentLocomotion agentLocomotion;
 
         [Header("STT Trigger Settings")]
         [Tooltip("Choose automatic, then the IVA will respond to any STT input. Choose Triggerphase, then the IVA will only respond when hearing trigger phrases such as: hello AI, hey AI, etc. ")]
@@ -271,38 +275,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 $"Additional information about you: {additionalDescription}.";
         }
         #endregion
-        #region agent locomotion
-        public void WalkTowards(Transform target, float stopDistance, float speed)
-        {
-            Vector3 targetPosition = target.position + target.forward * -stopDistance; // Move in front of target
-            StartCoroutine(MoveToPosition(targetPosition, speed));
-        }
-
-        private IEnumerator MoveToPosition(Vector3 targetPosition, float speed)
-        {
-            if (animator != null)
-            {
-                animator.SetBool("isWalking", true);
-
-                while (Vector3.Distance(transform.position, targetPosition) > 0.1f)
-                {
-                    Vector3 direction = (targetPosition - transform.position).normalized;
-                    characterController.Move(direction * speed * Time.deltaTime);
-                    transform.LookAt(new Vector3(targetPosition.x, transform.position.y, targetPosition.z)); // Keep rotation level
-
-                    yield return null;
-                }
-
-                animator.SetBool("isWalking", false);
-            }
-            else
-            {
-                Debug.LogWarning("no animator found!");
-                yield return null;
-            }
-        }
-
-        #endregion
 
         #region agent vision
         protected IEnumerator CaptureEgocentricImageCoroutine()
@@ -459,6 +431,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 SetupEyeGazeController();
                 SetupAudio();
                 //SetupUIIndicator();
+                //SetupAgentLocomotion();
             }
             else
             {
@@ -609,6 +582,19 @@ namespace IVH.Core.IntelligentVirtualAgent
             else
             {
                 Debug.LogWarning("agent instance is null; cannot attach EmotionHandler script.");
+            }
+        }
+
+        public void SetupAgentLocomotion()
+        {
+            if (agentInstance != null)
+            {
+                agentLocomotion = agentInstance.AddComponent<AgentLocomotion>();
+                NavMeshAgent meshAgent = agentInstance.AddComponent<NavMeshAgent>();
+            }
+            else
+            {
+                Debug.LogWarning("agent instance is null; cannot attach NavMeshAgent script.");
             }
         }
 
