@@ -174,7 +174,7 @@ namespace IVH.Core.Actions
         {
             if (animator == null || !animator.avatar.isHuman) return;
 
-            animator.SetLookAtWeight(headLookWeight, 0f, 1f, 0f, 1f); 
+            animator.SetLookAtWeight(headLookWeight, 0.3f, 1.0f, 0f, 0.5f); 
 
             animator.SetLookAtPosition(currentHeadLookAtPosition);
         }

@@ -224,7 +224,8 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     ["required"] = new JArray("action", "emotion", "gaze")
                 }
             };
-            
+            tool["function_declarations"] = new JArray(avatarFunc);
+
             if(hasLocomotion){
                 var moveFunc = new JObject
                 {
@@ -260,10 +261,10 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     }
                     };
                 tool["function_declarations"] = new JArray(avatarFunc, moveFunc);
-                toolsArray.Add(tool);
-                setupContent["tools"] = toolsArray;
-            }
 
+            }
+            toolsArray.Add(tool);
+            setupContent["tools"] = toolsArray;
 
             if (contextWindowSliding)
             {

@@ -131,7 +131,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             else
             {
-                if (characterType == CharacterType.CC4OrDIDIMO && enableLocomotion)
+                if (characterType == CharacterType.CC4OrDIDIMO && enableLocomotion==true)
                 {
                     // has locomotion is true
                     _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName, true);
@@ -389,8 +389,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information: {additionalDescription}.");
             // Inside BuildSystemPrompt()
             sb.AppendLine("SYSTEM RULES:");
-            sb.AppendLine("1. You control a 3D avatar. ONLY call 'update_avatar_state' if your emotional state or physical action genuinely needs to change based on the conversation.");
-            sb.AppendLine("2. If the user asks you to move (e.g., 'step back', 'come here'), call 'move_agent'.");
+            sb.AppendLine("1. You control a 3D avatar. ONLY call 'update_avatar_state' if your emotional state or physical action (e.g. facial expression, gaze, body languages) needs to change based on the conversation.");            sb.AppendLine("2. If the user asks you to move (e.g., 'step back', 'come here'), call 'move_agent'.");
             sb.AppendLine("3. DO NOT call 'update_avatar_state' at the start of every turn. If your state hasn't changed, just speak.");
             sb.AppendLine("4. If the user's request requires using other available tools, you may call them.");
             sb.AppendLine("5. Do not pause your speech to narrate your tool calls. Call the necessary tools and deliver your spoken response normally."); 
