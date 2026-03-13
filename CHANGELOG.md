@@ -1,6 +1,9 @@
 # Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
 
+## 2.3.0
+  - [EXPERIMENTAL] Integrate ``AgentLocomotion`` with basic locomotion functionalities to ``GeminiLiveAgent``. Currently only support mixamo animations and internal use only. 
+
 ## 2.2.1
   - [EXPERIMENTAL] Add generic tool calling to ``GeminiLiveAgent`` as well, this is only supported in ``gemini-2.5-flash-native-audio-preview-12-2025``
   - Make vocal interruption optional parameter set by developer. 

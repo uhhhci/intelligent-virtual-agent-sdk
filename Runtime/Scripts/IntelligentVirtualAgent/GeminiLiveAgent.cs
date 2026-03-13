@@ -71,9 +71,27 @@ namespace IVH.Core.IntelligentVirtualAgent
             };
             _realtimeWrapper.OnCommandReceived += (act, emo, gaze) => {
                 Debug.Log($"<color=cyan>CMD:</color> {act}");
-                if(!string.IsNullOrEmpty(act) && act != "none") PerformAction(act);
-                if(!string.IsNullOrEmpty(emo) && emo != "none") ExpressEmotion(emo);
-                if(!string.IsNullOrEmpty(gaze) && emo != "none") HandleGaze(gaze);
+                StartCoroutine(QueueCommandUntilStopped(act, emo, gaze));
+            };
+
+            _realtimeWrapper.OnMoveCommand += (angle, distance, speed, faceMovementDirection) => 
+            {
+                Debug.Log($"<color=cyan>MOVE:</color> Angle: {angle}°, Dist: {distance}m, Speed: {speed}m/s, FaceDir: {faceMovementDirection}");
+                
+                if (agentInstance == null) return;
+
+                Vector3 startPos = agentInstance.transform.position;
+                Vector3 flatForward = Vector3.ProjectOnPlane(agentInstance.transform.forward, Vector3.up).normalized;
+
+                Vector3 moveDirection = Quaternion.Euler(0f, angle, 0f) * flatForward;
+                Vector3 targetPos = startPos + moveDirection.normalized * distance;
+
+                if (agentLocomotion != null)
+                {
+                    agentLocomotion.MoveToPoint(targetPos, speed, faceMovementDirection);
+                    if (player != null)
+                        agentLocomotion.cameraPos = player.transform.position;
+                }
             };
         }
 
@@ -113,16 +131,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             else
             {
-                _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName);
+                if (characterType == CharacterType.CC4OrDIDIMO && enableLocomotion)
+                {
+                    // has locomotion is true
+                    _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName, true);
+                }
+                else
+                {
+                    _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName, false);
+                }
             }
 
         }
-        // public void Connect()
-        // {
-        //     _isSessionReady = false;
-        //     string dynamicPrompt = BuildSystemPrompt();
-        //     _ = _realtimeWrapper.ConnectAsync(dynamicPrompt, voiceName);
-        // }
 
         private IEnumerator WaitForGreetingToFinishAndStartVision()
         {
@@ -189,23 +209,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _realtimeWrapper.SendTextMessage("System: Session started. Call update_avatar_state ONCE and Greet the user.");   
             }
         }
-        // private IEnumerator SendGreetingDelayed()
-        // {
-        //     // Vertex AI needs a split second to settle the session state after setup_complete
-        //     yield return new WaitForSeconds(1.0f);
-            
-        //     if(_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
-        //     {
-        //         // RELAXED PROMPT: We ask it to initialize the avatar, but leave it free to think and use tools.
-        //         string setupPrompt = "System: Session started. Please initialize your state by calling 'update_avatar_state'. " +
-        //                             "After receiving confirmation, verbally greet the user. You are free to use other available tools as necessary.";
-        //         _realtimeWrapper.SendTextMessage(setupPrompt);
-        //     }
-        //     else
-        //     {
-        //         _realtimeWrapper.SendTextMessage("System: Session started. Call update_avatar_state ONCE, wait for confirmation, and then Greet the user.");   
-        //     }
-        // }
+
         private IEnumerator AutoCaptureLoop()
         {
             while (_isSessionReady && _realtimeWrapper.IsConnected)
@@ -386,9 +390,11 @@ namespace IVH.Core.IntelligentVirtualAgent
             // Inside BuildSystemPrompt()
             sb.AppendLine("SYSTEM RULES:");
             sb.AppendLine("1. You control a 3D avatar. ONLY call 'update_avatar_state' if your emotional state or physical action genuinely needs to change based on the conversation.");
-            sb.AppendLine("2. DO NOT call 'update_avatar_state' at the start of every turn. If your state hasn't changed, just speak.");
-            sb.AppendLine("3. If the user's request requires using other available tools, you may call them.");
-            sb.AppendLine("4. Do not pause your speech to narrate your tool calls. Call the necessary tools and deliver your spoken response normally."); 
+            sb.AppendLine("2. If the user asks you to move (e.g., 'step back', 'come here'), call 'move_agent'.");
+            sb.AppendLine("3. DO NOT call 'update_avatar_state' at the start of every turn. If your state hasn't changed, just speak.");
+            sb.AppendLine("4. If the user's request requires using other available tools, you may call them.");
+            sb.AppendLine("5. Do not pause your speech to narrate your tool calls. Call the necessary tools and deliver your spoken response normally."); 
+
             // Logic for Affective Analysis support
             if (_realtimeWrapper.affectiveAnalysis)
             {
@@ -443,6 +449,24 @@ namespace IVH.Core.IntelligentVirtualAgent
                 .Distinct().ToList();
         }
 
+        private IEnumerator QueueCommandUntilStopped(string act, string emo, string gaze)
+        {
+            yield return new WaitForSeconds(0.5f);
+
+            if (agentLocomotion != null)
+            {
+                while (agentLocomotion.isMoving)
+                {
+                    yield return null;
+                }
+            }
+
+            
+            if(!string.IsNullOrEmpty(act) && act != "none") PerformAction(act);
+            if(!string.IsNullOrEmpty(emo) && emo != "none") ExpressEmotion(emo);
+            if(!string.IsNullOrEmpty(gaze) && gaze != "none") HandleGaze(gaze);
+        }
+
         // setup agent
         public override void SetupVirtualAgent()
         {
@@ -464,9 +488,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                 SetupEyeGazeController();
                 SetupAudio();
                 //SetupUIIndicator();
+                if (characterType == CharacterType.CC4OrDIDIMO)
+                {
+                    SetupAgentLocomotion();
+                }
                 _realtimeWrapper = GetComponent<GeminiRealtimeWrapper>();
                 if (_realtimeWrapper == null) _realtimeWrapper = gameObject.AddComponent<GeminiRealtimeWrapper>();
-
 
             }
             else

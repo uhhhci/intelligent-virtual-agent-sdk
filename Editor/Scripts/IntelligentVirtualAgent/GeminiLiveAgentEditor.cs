@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using IVH.Core.IntelligentVirtualAgent; // Matches your agent's namespace
 using IVH.Core.ServiceConnector;
-
+using UnityEngine.AI; 
 namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 {
     [CustomEditor(typeof(GeminiLiveAgent))]
@@ -28,10 +28,22 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private SerializedProperty rawImageProp;
         private SerializedProperty selectedWebCamNameProp;
 
+        // Basic agent prop. 
+        private SerializedProperty characterTypeProp;
+        private SerializedProperty enableLocomotionProp;
+        // locomotion related
+        private bool isNavMeshInScene; 
+        private bool CheckForNavMesh()
+        {
+            // SamplePosition is a very fast, non-allocating way to check if there's NavMesh data.
+            // A huge distance (1,000,000) ensures it finds the NavMesh even if Vector3.zero is far away.
+            return NavMesh.SamplePosition(Vector3.zero, out _, 1000000f, NavMesh.AllAreas);
+        }
         public void OnEnable()
         {
             agent = target as GeminiLiveAgent;
-
+            characterTypeProp = serializedObject.FindProperty("characterType");
+            enableLocomotionProp = serializedObject.FindProperty("enableLocomotion");
             // Map GeminiLiveAgent.cs variables
             voiceNameProp = serializedObject.FindProperty("voiceName");
             autoConnectProp = serializedObject.FindProperty("autoConnectOnStart");
@@ -50,6 +62,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             resolutionProp = serializedObject.FindProperty("resolution");
             rawImageProp = serializedObject.FindProperty("rawImage");
             selectedWebCamNameProp = serializedObject.FindProperty("selectedWebCamName");
+
+            isNavMeshInScene = CheckForNavMesh();
         }
 
         public override void OnInspectorGUI()
@@ -65,6 +79,11 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 "vision", "targetCameraType", "resolution", "rawImage", "selectedWebCamName",
                 // Exclude unused AgentBase fields to keep it clean
                 "TTSService", "STTService", "foundationModel", "triggerPhrases", "wakeupMode", "cloudServiceManagerPrefab", "language");
+
+            if (characterTypeProp.enumNames[characterTypeProp.enumValueIndex] == "CC4OrDIDIMO" && isNavMeshInScene)
+            {
+                EditorGUILayout.PropertyField(enableLocomotionProp);
+            }
 
             EditorGUILayout.Space();
 
