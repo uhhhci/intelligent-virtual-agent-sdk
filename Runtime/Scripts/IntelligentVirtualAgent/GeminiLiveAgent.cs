@@ -24,6 +24,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Header("VAD & Interruption")]
         [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
         public bool enableVocalInterruption = true;
+        [Tooltip("Mutes the microphone while the agent is speaking to prevent it from hearing its own echo (Use if not wearing headphones). Note: Disables interruption!")]
+        public bool muteMicWhileTalking = true;
 
         [Tooltip("Volume threshold (0.0 to 1.0) required to trigger voice detection.")]
         [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
@@ -239,50 +241,53 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (_isRecording) { Microphone.End(microphoneDeviceName); _isRecording = false; }
         }
 
-        private void ProcessMicrophone()
+    private void ProcessMicrophone()
+    {
+        if (!_isRecording || _micClip == null) return;
+        
+        int currentPos = Microphone.GetPosition(microphoneDeviceName);
+        if (currentPos < _lastMicPos) { _lastMicPos = 0; return; }
+        
+        int diff = currentPos - _lastMicPos;
+        if (diff > 800) // ~50ms chunks
         {
-            if (!_isRecording || _micClip == null) return;
-            
-            int currentPos = Microphone.GetPosition(microphoneDeviceName);
-            if (currentPos < _lastMicPos) { _lastMicPos = 0; return; }
-            
-            int diff = currentPos - _lastMicPos;
-            if (diff > 800) // ~50ms chunks
+            float[] samples = new float[diff];
+            _micClip.GetData(samples, _lastMicPos);
+
+            // --- NEW ECHO CANCELLATION LOGIC ---
+            // If the agent is talking and we want to prevent echo, zero out the audio chunk.
+            if (muteMicWhileTalking && _isPlaying)
             {
-                float[] samples = new float[diff];
-                _micClip.GetData(samples, _lastMicPos);
-
-                // --- 1. INTELLIGENT VOICE DETECTION ---
-                // We analyze the samples to see if they contain *speech* specifically.
-                bool detectedSpeech = IsSpeechDetected(samples);
-
-                // --- 2. INTERRUPTION TRIGGER ---
-                // Only interrupt if the agent is talking AND we detected actual speech (not just noise)
-                if (_isPlaying && detectedSpeech && enableVocalInterruption)
-                {
-                    Debug.Log($"<color=yellow>INTERRUPTING: Speech Detected</color>");
-                    InterruptPlayback();
-                }
-
-                // --- 3. PREPARE & SEND DATA ---
-                // We send the audio regardless (so Gemini hears the interruption context)
-                byte[] pcmData = new byte[samples.Length * 2];
-                
-                // If the signal is extremely weak (silence), we can zero it out to save bandwidth/confusion
-                // But generally, sending filtered gain is better.
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    float sample = samples[i] * inputGain;
-                    sample = Mathf.Clamp(sample, -1f, 1f);
-                    short val = (short)(sample * 32767);
-                    BitConverter.GetBytes(val).CopyTo(pcmData, i * 2);
-                }
-
-                _realtimeWrapper.SendAudioChunk(pcmData);
-                _lastMicPos = currentPos;
+                Array.Clear(samples, 0, samples.Length);
             }
-        }
 
+            // --- 1. INTELLIGENT VOICE DETECTION ---
+            // Because samples might be zeroed out above, this will correctly return false 
+            // while the agent is speaking, naturally preventing false interruption triggers.
+            bool detectedSpeech = IsSpeechDetected(samples);
+
+            // --- 2. INTERRUPTION TRIGGER ---
+            if (_isPlaying && detectedSpeech && enableVocalInterruption)
+            {
+                Debug.Log($"<color=yellow>INTERRUPTING: Speech Detected</color>");
+                InterruptPlayback();
+            }
+
+            // --- 3. PREPARE & SEND DATA ---
+            byte[] pcmData = new byte[samples.Length * 2];
+            
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float sample = samples[i] * inputGain;
+                sample = Mathf.Clamp(sample, -1f, 1f);
+                short val = (short)(sample * 32767);
+                BitConverter.GetBytes(val).CopyTo(pcmData, i * 2);
+            }
+
+            _realtimeWrapper.SendAudioChunk(pcmData);
+            _lastMicPos = currentPos;
+        }
+    }
         /// <summary>
         /// Analyzes audio chunk to determine if human speech is present.
         /// Uses a bandpass filter (300Hz-3000Hz) to ignore rumble and hiss.
