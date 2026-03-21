@@ -20,6 +20,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private SerializedProperty voiceDetectionThresholdProp;
         private SerializedProperty useVocalFrequencyFilterProp;
         private SerializedProperty interruptionDebounceTimeProp;
+        private SerializedProperty echoInterruptionThresholdProp;
+
         private SerializedProperty visionUpdateFrequencyProp;
 
         // Vision Properties (Inherited from AgentBase)
@@ -50,7 +52,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             autoConnectProp = serializedObject.FindProperty("autoConnectOnStart");
             microphoneProp = serializedObject.FindProperty("microphoneDeviceName");
             inputGainProp = serializedObject.FindProperty("inputGain");
-
+            echoInterruptionThresholdProp = serializedObject.FindProperty("echoInterruptionThreshold");
             muteMicWhileTalkingProp = serializedObject.FindProperty("muteMicWhileTalking");
             enableVocalInterruptionProp = serializedObject.FindProperty("enableVocalInterruption");
             voiceDetectionThresholdProp = serializedObject.FindProperty("voiceDetectionThreshold");
@@ -76,7 +78,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             DrawPropertiesExcluding(serializedObject,
                 "m_Script",
                 "voiceName", "autoConnectOnStart",
-                "microphoneDeviceName", "inputGain", "muteMicWhileTalking",
+                "microphoneDeviceName", "inputGain", "muteMicWhileTalking", "echoInterruptionThreshold",
                 "enableVocalInterruption", "voiceDetectionThreshold", "useVocalFrequencyFilter", "interruptionDebounceTime", "visionUpdateFrequency",
                 "vision", "targetCameraType", "resolution", "rawImage", "selectedWebCamName",
                 // Exclude unused AgentBase fields to keep it clean
@@ -126,23 +128,24 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             // --- VAD & Interruption Logic ---
             EditorGUILayout.Space(5);
             EditorGUILayout.PropertyField(muteMicWhileTalkingProp, new GUIContent("Prevent Echo (Mute Mic While Talking)"));
-
-            if (muteMicWhileTalkingProp.boolValue && enableVocalInterruptionProp.boolValue)
-            {
-                EditorGUILayout.HelpBox("Prevent Echo is ON. Vocal interruption by the user will not work while the agent is speaking because the microphone feed to Gemini is muted.", MessageType.Info);
-            }
             EditorGUILayout.PropertyField(enableVocalInterruptionProp, new GUIContent("Enable Vocal Interruption"));
 
-            // Conditionally show advanced VAD settings
             if (enableVocalInterruptionProp.boolValue)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(voiceDetectionThresholdProp, new GUIContent("Detection Threshold"));
+                EditorGUILayout.PropertyField(voiceDetectionThresholdProp, new GUIContent("Normal Voice Detection Threshold"));
+                
+                if (muteMicWhileTalkingProp.boolValue)
+                {
+                    EditorGUILayout.PropertyField(echoInterruptionThresholdProp, new GUIContent("Echo Interruption Threshold"));
+                    EditorGUILayout.HelpBox("Because Prevent Echo is ON, interruption requires a louder voice to overcome the speaker's echo. Adjust the Echo Threshold below.", MessageType.Info);
+
+                }
+                
                 EditorGUILayout.PropertyField(useVocalFrequencyFilterProp, new GUIContent("Use Frequency Filter"));
                 EditorGUILayout.PropertyField(interruptionDebounceTimeProp, new GUIContent("Debounce Time (s)"));
                 EditorGUI.indentLevel--;
             }
-
             EditorGUILayout.Space();
 
             // 4. Vision
