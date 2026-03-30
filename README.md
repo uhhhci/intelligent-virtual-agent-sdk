@@ -224,6 +224,15 @@ If this work helps your research, please cite the following papers:
 
 ```
 
+@article{LiAnthromorphicAI2026,
+  author  = {Li, Ke and Mostajeran, Fariba and Rings, Sebastian and Hertel, Julia and Schmidt, Susanne and Arz, Michael and Steinicke, Frank},
+  title   = {Anthropomorphic AI: A Toolkit for Authoring and Interacting with Intelligent Virtual Agents for Extended Reality},
+  journal = {Frontiers in Virtual Reality},
+  year    = {2026},
+  volume  = {7},
+  doi     = {10.3389/frvir.2026.1794720}
+}
+
 @article{Li2025IHS,
   title={I Hear, See, Speak \& Do: Bringing Multimodal Information Processing to Intelligent Virtual Agents for Natural Human-AI Communication},
   author={Ke Li and Fariba Mostajeran and Sebastian Rings and Lucie Kruse and Susanne Schmidt and Michael Arz and Erik Wolf and Frank Steinicke},
