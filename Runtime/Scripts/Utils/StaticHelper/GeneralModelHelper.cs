@@ -33,13 +33,20 @@ namespace IVH.Core.Utils
         public static string GetGeminiApiKey() => GetApiKey("GeminiApiKey");
         public static string GetAzureSubscriptionKey() => GetApiKey("AzureSubscriptionKey");
         public static string GetAzureEndpointId() => GetApiKey("AzureEndpointId");
-        public static string GetElevenLabAPIKey() => GetApiKey("ElevenLabsApiKey");
 
         private static void LoadAuthFile()
         {
+            Debug.Log("Auth path: " + Path.Combine(Application.persistentDataPath, ".aiapi", "auth.json"));
+
             _hasAttemptedLoad = true;
+            
+#if UNITY_EDITOR || UNITY_STANDALONE
             var userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var authPath = Path.Combine(userPath, ".aiapi/auth.json");
+#else
+            var userPath = Application.persistentDataPath;
+#endif
+            
+            string authPath = Path.Combine(userPath, ".aiapi/auth.json");
 
             if (!File.Exists(authPath))
             {
@@ -57,6 +64,8 @@ namespace IVH.Core.Utils
                 Debug.LogError($"Fatal error parsing auth.json: {ex.Message}");
             }
         }
+
+        public static string GetElevenLabAPIKey() => GetApiKey("ElevenLabsApiKey");
 
         private static string GetApiKey(string keyName)
         {
