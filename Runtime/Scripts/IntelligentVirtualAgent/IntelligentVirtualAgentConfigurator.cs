@@ -84,17 +84,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             // check if the agentinstance is not null
             if (agentInstance != null)
             {
+                Debug.Log("Skip for now!");
                 // Attach Oculus LipSync scripts to the agent instance
-                OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
+                // OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
                 
-                OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
-                ovrLipSyncContext.audioLoopback = true;
-                ovrLipSyncContext.audioSource= agentInstance.GetComponent<AudioSource>();
+                // OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
+                // ovrLipSyncContext.audioLoopback = true;
+                // ovrLipSyncContext.audioSource= agentInstance.GetComponent<AudioSource>();
 
 
-                OVRLipSyncContextMorphTarget ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTarget>();
-                ovrLipSyncContextMorphTarget.skinnedMeshRenderer= agentInstance.transform.Find("Body").GetComponent<SkinnedMeshRenderer>();//Assign the skinned Mesh Renderer of the Body 
-                for (int i = 0; i < 15; ovrLipSyncContextMorphTarget.visemeToBlendTargets[i] = 52 + i++) ;//Assign Didimo character viseme blendshapes for oculus lipsync that range from body_blendshapes.shp_52_sil,..., body_blendshapes.shp_66_U and carry their indices inside their names: i.e., 52-66 to the morph target viseme to blend targets
+                // OVRLipSyncContextMorphTarget ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTarget>();
+                // ovrLipSyncContextMorphTarget.skinnedMeshRenderer= agentInstance.transform.Find("Body").GetComponent<SkinnedMeshRenderer>();//Assign the skinned Mesh Renderer of the Body 
+                // for (int i = 0; i < 15; ovrLipSyncContextMorphTarget.visemeToBlendTargets[i] = 52 + i++) ;//Assign Didimo character viseme blendshapes for oculus lipsync that range from body_blendshapes.shp_52_sil,..., body_blendshapes.shp_66_U and carry their indices inside their names: i.e., 52-66 to the morph target viseme to blend targets
 
             }
             else

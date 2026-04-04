@@ -497,16 +497,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (agentInstance != null)
             {
                 // Attach Oculus LipSync scripts to the agent instance
-                OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
 
-                OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
-                ovrLipSyncContext.audioLoopback = true;
-                ovrLipSyncContext.audioSource = agentInstance.GetComponent<AudioSource>();
+                // OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
+
+                // OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
+                // ovrLipSyncContext.audioLoopback = true;
+                // ovrLipSyncContext.audioSource = agentInstance.GetComponent<AudioSource>();
 
 
-                OVRLipSyncContextMorphTargetExtended ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTargetExtended>();
+                // OVRLipSyncContextMorphTargetExtended ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTargetExtended>();
 
-                ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+                // ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+                Debug.Log("Skip Lip Sync for now");
 
             }
             else
@@ -566,7 +568,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         public void SetupAudio()
         {
             // Get the SimpleChatBehavior component from this GameObject
-            agentAudioSource = agentInstance.GetComponent<AudioSource>();
+            agentAudioSource = agentInstance.AddComponent<AudioSource>();
+            // agentAudioSource = agentInstance.GetComponent<AudioSource>();
         }
 
 
