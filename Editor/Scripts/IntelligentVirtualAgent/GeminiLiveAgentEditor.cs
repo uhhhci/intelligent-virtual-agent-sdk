@@ -186,7 +186,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             EditorGUILayout.Space(10);
 
             // 5. Setup & Runtime Controls
-            if (!Application.isPlaying)
+if (!Application.isPlaying)
             {
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
@@ -197,10 +197,46 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             else
             {
                 EditorGUILayout.LabelField("Live Controls", EditorStyles.boldLabel);
-                GUI.backgroundColor = new Color(0.7f, 1f, 0.7f);
+                
+                // Reconnect Button
+                GUI.backgroundColor = new Color(0.7f, 1f, 0.7f); // Light Green
                 if (GUILayout.Button("Reconnect Gemini", GUILayout.Height(30))) agent.Connect();
+                
+                GUILayout.Space(5);
+                bool currentVisionState = visionProp.boolValue;
+                string buttonText = currentVisionState ? "Stop Vision Stream" : "Start Vision Stream";
+                
+                // Red for Stop, Blue for Start
+                GUI.backgroundColor = currentVisionState ? new Color(1f, 0.7f, 0.7f) : new Color(0.7f, 0.8f, 1f);
+                
+                if (GUILayout.Button(buttonText, GUILayout.Height(30)))
+                {
+                    // Toggle the state
+                    bool newState = !currentVisionState;
+                    agent.ToggleVisionStream(newState);
+                    
+                    // Update the serialized property so the inspector checkbox syncs up
+                    visionProp.boolValue = newState;
+                }
+                
+                // Reset GUI color
                 GUI.backgroundColor = Color.white;
             }
+            // if (!Application.isPlaying)
+            // {
+            //     GUILayout.BeginHorizontal();
+            //     if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
+            //     // Assumes DestroyVirtualAgent is inherited from AgentBase
+            //     if (GUILayout.Button("Clear Virtual Agent", GUILayout.Height(25))) agent.DestroyVirtualAgent();
+            //     GUILayout.EndHorizontal();
+            // }
+            // else
+            // {
+            //     EditorGUILayout.LabelField("Live Controls", EditorStyles.boldLabel);
+            //     GUI.backgroundColor = new Color(0.7f, 1f, 0.7f);
+            //     if (GUILayout.Button("Reconnect Gemini", GUILayout.Height(30))) agent.Connect();
+            //     GUI.backgroundColor = Color.white;
+            // }
 
             serializedObject.ApplyModifiedProperties();
         }

@@ -365,6 +365,31 @@ namespace IVH.Core.IntelligentVirtualAgent
         // --- View & Prompt Helpers ---
 
         public void SendCurrentView() => StartCoroutine(CaptureAndSend());
+        // ADD THIS METHOD: Toggles the vision stream on and off dynamically
+        public void ToggleVisionStream(bool enable)
+        {
+            vision = enable;
+            
+            if (enable)
+            {
+                // Only start if it's not already running and the session is ready
+                if (_visionCoroutine == null && _isSessionReady)
+                {
+                    Debug.Log("<color=cyan>Vision Stream toggled ON.</color>");
+                    _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+                }
+            }
+            else
+            {
+                // Stop the coroutine if it's currently running
+                if (_visionCoroutine != null)
+                {
+                    Debug.Log("<color=cyan>Vision Stream toggled OFF.</color>");
+                    StopCoroutine(_visionCoroutine);
+                    _visionCoroutine = null;
+                }
+            }
+        }
         private IEnumerator CaptureAndSend()
         {
             if (targetCameraType == TargetCameraType.WebCam)
