@@ -1,6 +1,11 @@
 # Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
+## 2.3.2
+  - enabled toggle vision capability
 
+## 2.3.1
+  - added ``muteMicWhileTalkingProp`` to stop the IVA from listening to the echos and allow better experiences when not wearing headphones. 
+  
 ## 2.3.0
   - [EXPERIMENTAL] Integrate ``AgentLocomotion`` with basic locomotion functionalities to ``GeminiLiveAgent``. Currently only support mixamo animations and internal use only. 
 

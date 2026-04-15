@@ -24,6 +24,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Header("VAD & Interruption")]
         [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
         public bool enableVocalInterruption = true;
+        [Tooltip("Mutes the microphone while the agent is speaking to prevent it from hearing its own echo (Use if not wearing headphones). Note: Disables interruption!")]
+        public bool muteMicWhileTalking = true;
+        [Tooltip("Volume threshold required to interrupt the agent while it is speaking (must be higher than the echo volume).")]
+        [Range(0.05f, 0.5f)] public float echoInterruptionThreshold = 0.15f;
 
         [Tooltip("Volume threshold (0.0 to 1.0) required to trigger voice detection.")]
         [Range(0.005f, 0.2f)] public float voiceDetectionThreshold = 0.04f;
@@ -252,24 +256,32 @@ namespace IVH.Core.IntelligentVirtualAgent
                 float[] samples = new float[diff];
                 _micClip.GetData(samples, _lastMicPos);
 
-                // --- 1. INTELLIGENT VOICE DETECTION ---
-                // We analyze the samples to see if they contain *speech* specifically.
-                bool detectedSpeech = IsSpeechDetected(samples);
+                // Determine which threshold to use based on whether the agent is talking
+                float currentThreshold = _isPlaying ? echoInterruptionThreshold : voiceDetectionThreshold;
+                
+                // Check for speech against the active threshold
+                bool isUserTalking = IsSpeechDetected(samples, currentThreshold);
 
-                // --- 2. INTERRUPTION TRIGGER ---
-                // Only interrupt if the agent is talking AND we detected actual speech (not just noise)
-                if (_isPlaying && detectedSpeech && enableVocalInterruption)
+                if (_isPlaying)
                 {
-                    Debug.Log($"<color=yellow>INTERRUPTING: Speech Detected</color>");
-                    InterruptPlayback();
+                    if (isUserTalking && enableVocalInterruption)
+                    {
+                        // The user spoke loudly enough to overcome the echo threshold!
+                        Debug.Log($"<color=yellow>INTERRUPTING: Loud Speech Detected Over Agent</color>");
+                        InterruptPlayback();
+                        // Note: We DO NOT clear the array here, so Gemini hears your interruption.
+                    }
+                    else if (muteMicWhileTalking)
+                    {
+                        // The sound was below the echo threshold. It's likely just the speaker echo.
+                        // Zero out the array so Gemini doesn't hear itself.
+                        Array.Clear(samples, 0, samples.Length);
+                    }
                 }
 
-                // --- 3. PREPARE & SEND DATA ---
-                // We send the audio regardless (so Gemini hears the interruption context)
+                // --- PREPARE & SEND DATA ---
                 byte[] pcmData = new byte[samples.Length * 2];
                 
-                // If the signal is extremely weak (silence), we can zero it out to save bandwidth/confusion
-                // But generally, sending filtered gain is better.
                 for (int i = 0; i < samples.Length; i++)
                 {
                     float sample = samples[i] * inputGain;
@@ -282,12 +294,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _lastMicPos = currentPos;
             }
         }
-
-        /// <summary>
-        /// Analyzes audio chunk to determine if human speech is present.
-        /// Uses a bandpass filter (300Hz-3000Hz) to ignore rumble and hiss.
-        /// </summary>
-        private bool IsSpeechDetected(float[] rawSamples)
+        private bool IsSpeechDetected(float[] rawSamples, float currentThreshold)
         {
             float sumSquared = 0f;
             int count = rawSamples.Length;
@@ -298,16 +305,9 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                 if (useVocalFrequencyFilter)
                 {
-                    // Apply Bandpass Filter (Approx 200Hz - 3000Hz at 16kHz sample rate)
-                    // 1. Low Pass (remove high hiss > 3kHz)
-                    // Simple IIR Low Pass: y[i] = y[i-1] + alpha * (x[i] - y[i-1])
-                    // Alpha ~ 0.5 for ~3kHz cut-off at 16kHz
                     _lpPrev = _lpPrev + 0.5f * (sample - _lpPrev);
                     float lowPassed = _lpPrev;
 
-                    // 2. High Pass (remove rumble < 200Hz)
-                    // Simple IIR High Pass: y[i] = alpha * (y[i-1] + x[i] - x[i-1])
-                    // Alpha ~ 0.9 for ~200Hz cut-off
                     float highPassed = 0.9f * (_hpPrevOutput + lowPassed - _hpPrevInput);
                     _hpPrevOutput = highPassed;
                     _hpPrevInput = lowPassed;
@@ -318,13 +318,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                 sumSquared += sample * sample;
             }
 
-            // Calculate RMS of the *filtered* signal
             float rms = Mathf.Sqrt(sumSquared / count);
-
-            // Compare RMS against threshold (scaled by input gain to match user expectation)
-            return (rms * inputGain) > voiceDetectionThreshold;
+            return (rms * inputGain) > currentThreshold;
         }
-
         private void InterruptPlayback()
         {
             if (agentAudioSource.isPlaying) agentAudioSource.Stop();
@@ -369,6 +365,31 @@ namespace IVH.Core.IntelligentVirtualAgent
         // --- View & Prompt Helpers ---
 
         public void SendCurrentView() => StartCoroutine(CaptureAndSend());
+        // ADD THIS METHOD: Toggles the vision stream on and off dynamically
+        public void ToggleVisionStream(bool enable)
+        {
+            vision = enable;
+            
+            if (enable)
+            {
+                // Only start if it's not already running and the session is ready
+                if (_visionCoroutine == null && _isSessionReady)
+                {
+                    Debug.Log("<color=cyan>Vision Stream toggled ON.</color>");
+                    _visionCoroutine = StartCoroutine(AutoCaptureLoop());
+                }
+            }
+            else
+            {
+                // Stop the coroutine if it's currently running
+                if (_visionCoroutine != null)
+                {
+                    Debug.Log("<color=cyan>Vision Stream toggled OFF.</color>");
+                    StopCoroutine(_visionCoroutine);
+                    _visionCoroutine = null;
+                }
+            }
+        }
         private IEnumerator CaptureAndSend()
         {
             if (targetCameraType == TargetCameraType.WebCam)

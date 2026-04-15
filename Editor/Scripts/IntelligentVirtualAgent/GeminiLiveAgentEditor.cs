@@ -16,9 +16,12 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private SerializedProperty microphoneProp;
         private SerializedProperty inputGainProp;
         private SerializedProperty enableVocalInterruptionProp;
+        private SerializedProperty muteMicWhileTalkingProp;
         private SerializedProperty voiceDetectionThresholdProp;
         private SerializedProperty useVocalFrequencyFilterProp;
         private SerializedProperty interruptionDebounceTimeProp;
+        private SerializedProperty echoInterruptionThresholdProp;
+
         private SerializedProperty visionUpdateFrequencyProp;
 
         // Vision Properties (Inherited from AgentBase)
@@ -49,7 +52,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             autoConnectProp = serializedObject.FindProperty("autoConnectOnStart");
             microphoneProp = serializedObject.FindProperty("microphoneDeviceName");
             inputGainProp = serializedObject.FindProperty("inputGain");
-            
+            echoInterruptionThresholdProp = serializedObject.FindProperty("echoInterruptionThreshold");
+            muteMicWhileTalkingProp = serializedObject.FindProperty("muteMicWhileTalking");
             enableVocalInterruptionProp = serializedObject.FindProperty("enableVocalInterruption");
             voiceDetectionThresholdProp = serializedObject.FindProperty("voiceDetectionThreshold");
             useVocalFrequencyFilterProp = serializedObject.FindProperty("useVocalFrequencyFilter");
@@ -74,7 +78,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             DrawPropertiesExcluding(serializedObject,
                 "m_Script",
                 "voiceName", "autoConnectOnStart",
-                "microphoneDeviceName", "inputGain",
+                "microphoneDeviceName", "inputGain", "muteMicWhileTalking", "echoInterruptionThreshold",
                 "enableVocalInterruption", "voiceDetectionThreshold", "useVocalFrequencyFilter", "interruptionDebounceTime", "visionUpdateFrequency",
                 "vision", "targetCameraType", "resolution", "rawImage", "selectedWebCamName",
                 // Exclude unused AgentBase fields to keep it clean
@@ -120,20 +124,28 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
             EditorGUILayout.PropertyField(inputGainProp, new GUIContent("Mic Gain"));
 
+ 
             // --- VAD & Interruption Logic ---
             EditorGUILayout.Space(5);
+            EditorGUILayout.PropertyField(muteMicWhileTalkingProp, new GUIContent("Prevent Echo (Mute Mic While Talking)"));
             EditorGUILayout.PropertyField(enableVocalInterruptionProp, new GUIContent("Enable Vocal Interruption"));
 
-            // Conditionally show advanced VAD settings
             if (enableVocalInterruptionProp.boolValue)
             {
                 EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(voiceDetectionThresholdProp, new GUIContent("Detection Threshold"));
+                EditorGUILayout.PropertyField(voiceDetectionThresholdProp, new GUIContent("Normal Voice Detection Threshold"));
+                
+                if (muteMicWhileTalkingProp.boolValue)
+                {
+                    EditorGUILayout.PropertyField(echoInterruptionThresholdProp, new GUIContent("Echo Interruption Threshold"));
+                    EditorGUILayout.HelpBox("Because Prevent Echo is ON, interruption requires a louder voice to overcome the speaker's echo. Adjust the Echo Threshold below.", MessageType.Info);
+
+                }
+                
                 EditorGUILayout.PropertyField(useVocalFrequencyFilterProp, new GUIContent("Use Frequency Filter"));
                 EditorGUILayout.PropertyField(interruptionDebounceTimeProp, new GUIContent("Debounce Time (s)"));
                 EditorGUI.indentLevel--;
             }
-
             EditorGUILayout.Space();
 
             // 4. Vision
@@ -174,7 +186,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             EditorGUILayout.Space(10);
 
             // 5. Setup & Runtime Controls
-            if (!Application.isPlaying)
+if (!Application.isPlaying)
             {
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
@@ -185,10 +197,46 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             else
             {
                 EditorGUILayout.LabelField("Live Controls", EditorStyles.boldLabel);
-                GUI.backgroundColor = new Color(0.7f, 1f, 0.7f);
+                
+                // Reconnect Button
+                GUI.backgroundColor = new Color(0.7f, 1f, 0.7f); // Light Green
                 if (GUILayout.Button("Reconnect Gemini", GUILayout.Height(30))) agent.Connect();
+                
+                GUILayout.Space(5);
+                bool currentVisionState = visionProp.boolValue;
+                string buttonText = currentVisionState ? "Stop Vision Stream" : "Start Vision Stream";
+                
+                // Red for Stop, Blue for Start
+                GUI.backgroundColor = currentVisionState ? new Color(1f, 0.7f, 0.7f) : new Color(0.7f, 0.8f, 1f);
+                
+                if (GUILayout.Button(buttonText, GUILayout.Height(30)))
+                {
+                    // Toggle the state
+                    bool newState = !currentVisionState;
+                    agent.ToggleVisionStream(newState);
+                    
+                    // Update the serialized property so the inspector checkbox syncs up
+                    visionProp.boolValue = newState;
+                }
+                
+                // Reset GUI color
                 GUI.backgroundColor = Color.white;
             }
+            // if (!Application.isPlaying)
+            // {
+            //     GUILayout.BeginHorizontal();
+            //     if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
+            //     // Assumes DestroyVirtualAgent is inherited from AgentBase
+            //     if (GUILayout.Button("Clear Virtual Agent", GUILayout.Height(25))) agent.DestroyVirtualAgent();
+            //     GUILayout.EndHorizontal();
+            // }
+            // else
+            // {
+            //     EditorGUILayout.LabelField("Live Controls", EditorStyles.boldLabel);
+            //     GUI.backgroundColor = new Color(0.7f, 1f, 0.7f);
+            //     if (GUILayout.Button("Reconnect Gemini", GUILayout.Height(30))) agent.Connect();
+            //     GUI.backgroundColor = Color.white;
+            // }
 
             serializedObject.ApplyModifiedProperties();
         }
