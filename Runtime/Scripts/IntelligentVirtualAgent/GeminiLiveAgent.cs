@@ -1,12 +1,12 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-using IVH.Core.IntelligentVirtualAgent;
-using IVH.Core.ServiceConnector.Gemini.Realtime;
-using System;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using IVH.Core.Actions;
+using IVH.Core.ServiceConnector.Gemini.Realtime;
+using UnityEngine;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
@@ -54,7 +54,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         private AudioClip _playbackClip;
         private bool _isPlaying = false;
         private AudioClip _micClip;
-        private int _lastMicPos;
+        private int _lastMicPosition;
         private bool _isRecording;
         private bool _isSessionReady = false;
         private bool _handshakeComplete = false;
@@ -234,15 +234,37 @@ namespace IVH.Core.IntelligentVirtualAgent
         private void StartMicrophone()
         {
             if (_isRecording) return;
-            if (string.IsNullOrEmpty(microphoneDeviceName) && Microphone.devices.Length > 0)
+
+            bool noMicrophoneAvailable = Microphone.devices.Length == 0;
+            if (noMicrophoneAvailable)
+            {
+                Debug.LogWarning("No microphone detected. Skipping initialization.");
+                return;
+            }
+
+            // Check if selected microphone is even available, because while building for an external device that has a
+            // microphone built-in you may wanna use that one
+            bool isSelectedMicrophoneAvailable = Microphone.devices.Contains(microphoneDeviceName);
+
+            // Use default device if no microphone is selected (should always be in first in Microphone.devices)
+            var useDefaultDevice = string.IsNullOrEmpty(microphoneDeviceName) && Microphone.devices.Length > 0;
+            if (useDefaultDevice || !isSelectedMicrophoneAvailable)
+            {
                 microphoneDeviceName = Microphone.devices[0];
+            }
 
             _micClip = Microphone.Start(microphoneDeviceName, true, 3599, 16000);
+            if (_micClip == null)
+            {
+                Debug.LogWarning("Microphone not found. Please check your input.");
+                return;
+            }
+
             while (Microphone.GetPosition(microphoneDeviceName) <= 0)
             {
             }
 
-            _lastMicPos = 0;
+            _lastMicPosition = 0;
             _isRecording = true;
             Debug.Log($"Mic Started: {microphoneDeviceName}");
         }
@@ -260,18 +282,18 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             if (!_isRecording || _micClip == null) return;
 
-            int currentPos = Microphone.GetPosition(microphoneDeviceName);
-            if (currentPos < _lastMicPos)
+            int currentMicPosition = Microphone.GetPosition(microphoneDeviceName);
+            if (currentMicPosition < _lastMicPosition)
             {
-                _lastMicPos = 0;
+                _lastMicPosition = 0;
                 return;
             }
 
-            int diff = currentPos - _lastMicPos;
-            if (diff > 800) // ~50ms chunks
+            int recordingPositionDifference = currentMicPosition - _lastMicPosition;
+            if (recordingPositionDifference > 800) // ~50ms chunks
             {
-                float[] samples = new float[diff];
-                _micClip.GetData(samples, _lastMicPos);
+                float[] samples = new float[recordingPositionDifference];
+                _micClip.GetData(samples, _lastMicPosition);
 
                 // Determine which threshold to use based on whether the agent is talking
                 float currentThreshold = _isPlaying ? echoInterruptionThreshold : voiceDetectionThreshold;
@@ -308,7 +330,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 }
 
                 _realtimeWrapper.SendAudioChunk(pcmData);
-                _lastMicPos = currentPos;
+                _lastMicPosition = currentMicPosition;
             }
         }
 
@@ -489,10 +511,10 @@ namespace IVH.Core.IntelligentVirtualAgent
                 if (eyeGazeController != null)
                 {
                     eyeGazeController.playerTarget = player;
-                    eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.LookAtPlayer;
+                    eyeGazeController.currentGazeMode = EyeGazeController.GazeMode.LookAtPlayer;
                 }
             }
-            else if (eyeGazeController != null) eyeGazeController.currentGazeMode = IVH.Core.Actions.EyeGazeController.GazeMode.Idle;
+            else if (eyeGazeController != null) eyeGazeController.currentGazeMode = EyeGazeController.GazeMode.Idle;
         }
 
         private List<string> CleanList(List<string> input)
