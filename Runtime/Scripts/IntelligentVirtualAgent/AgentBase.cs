@@ -17,44 +17,51 @@ namespace IVH.Core.IntelligentVirtualAgent
     // similar to basic social interactions
     public abstract class AgentBase : MonoBehaviour
     {
-        [Header("General Agent Attributes")]
+        [Header("General Agent Attributes")] 
         public GameObject agentPrefab;
 
         [Tooltip("Choose your cloud service manager prefab, which can be found in the IVA-SDK-Core>Runtime>Prefab folder. ")]
         public GameObject cloudServiceManagerPrefab;
+
         public EmotionHandlerType emotionHandlerType;
         public CharacterType characterType = CharacterType.CC4OrDIDIMO;
         public BodyAnimationControllerType bodyAnimationControllerType = BodyAnimationControllerType.Rocketbox;
         public RuntimeAnimatorController animatorController;
-        
+
         [Header("Agent Demographics")]
         //public MBTI personality; 
         public string agentName = "";
+
         public int age = 30;
         public Gender gender = Gender.Nonbinary;
+
         public string occupation = "";
+
         //public MBTI personality;
         public AgentLanguage language;
-        public string additionalDescription="";
+        public string additionalDescription = "";
         protected float agentHeight;
 
         [Header("Cloud Service Settings")]
         // Connect to Services
         protected CloudServiceManager cloudServiceManager;
+
         public VoiceService TTSService;
         public FoundationModels foundationModel;
         public VoiceRecognitionService STTService;
         protected string systemPrompt = "";
 
-        [Header("Agent Vision Settings")]
-        [HideInInspector] public bool vision = false;
+        [Header("Agent Vision Settings")] 
+        [HideInInspector]
+        public bool vision = false;
+
         [HideInInspector] public TargetCameraType targetCameraType = TargetCameraType.AgentCamera;
         [HideInInspector] public ImageTriggerMode imageTriggerMode = ImageTriggerMode.Auto;
         [HideInInspector] public ImageResolution resolution = ImageResolution.VGA;
         [HideInInspector] public string selectedWebCamName = "";
         protected string triggerPhrase = "what are you seeing";
         protected WebCamTexture webCamTexture;
-        [HideInInspector] public RawImage rawImage;  // Drag a RawImage UI element here to display the webcam feed
+        [HideInInspector] public RawImage rawImage; // Drag a RawImage UI element here to display the webcam feed
 
         // vision module
         [HideInInspector] public Camera agentVisionCamera;
@@ -66,14 +73,14 @@ namespace IVH.Core.IntelligentVirtualAgent
         //[HideInInspector] public bool physicsBasedAnimation = false;
         // add components and settings for the animation package
 
-        [Header("Action Recognition")]
-        [HideInInspector] public bool actionRecognition = false;
+        [Header("Action Recognition")] [HideInInspector]
+        public bool actionRecognition = false;
         // add some settings here when integrating JRS package
 
         // Service Selection
-        [Header("Agent Non Verbal Cues")]
-        [Tooltip("Optimize your token consumption based on the description mode of actions avaliable for IVAs. In Simple mode, only name of the actions are sent. In Detail mode, whole description is sent, including few shot learning samples. ")]
+        [Header("Agent Non Verbal Cues")] [Tooltip("Optimize your token consumption based on the description mode of actions avaliable for IVAs. In Simple mode, only name of the actions are sent. In Detail mode, whole description is sent, including few shot learning samples. ")]
         public ToolDescriptionMode descriptionMode;
+
         public BodyActionFilter bodyActionFilter;
         public FacialExpressionFilter facialExpressionFilter;
         [HideInInspector] public AudioSource agentAudioSource;
@@ -81,16 +88,18 @@ namespace IVH.Core.IntelligentVirtualAgent
         [HideInInspector] public AgentFacialExpressionAnimator faceAnimator;
         [HideInInspector] public EmotionHandler emotionHandler;
         [HideInInspector] public EyeGazeController eyeGazeController;
-        [Tooltip("Enable basic locomotion of the IVA, only available for Mixamo and CC4 characters. A nav mesh object needs to be available in the scene ")]
-        [HideInInspector] public bool enableLocomotion = false; 
+
+        [Tooltip("Enable basic locomotion of the IVA, only available for Mixamo and CC4 characters. A nav mesh object needs to be available in the scene ")] [HideInInspector]
+        public bool enableLocomotion = false;
+
         [HideInInspector] public AgentLocomotion agentLocomotion;
 
-        [Header("STT Trigger Settings")]
-        [Tooltip("Choose automatic, then the IVA will respond to any STT input. Choose Triggerphase, then the IVA will only respond when hearing trigger phrases such as: hello AI, hey AI, etc. ")]
+        [Header("STT Trigger Settings")] [Tooltip("Choose automatic, then the IVA will respond to any STT input. Choose Triggerphase, then the IVA will only respond when hearing trigger phrases such as: hello AI, hey AI, etc. ")]
         public AIWakeupMode wakeupMode = AIWakeupMode.Automatic;
 
         [Tooltip("Trigger phrase has to be all lower cases")]
         public string[] triggerPhrases = { "hey ai", "hello ai", "hi ai" }; // Customize your trigger phrases here
+
         protected bool triggeredOnce = false;
 
         // Locomotion
@@ -106,8 +115,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         // UI indicator
         [HideInInspector] public GameObject ListeningIndicator;
         [HideInInspector] public GameObject ThinkingIndicator;
-        
-        [HideInInspector][Header("Instant Actor")]
+
+        [HideInInspector] [Header("Instant Actor")] 
         [Tooltip("This text will mostly be used by the 'QuickSpeech' function for an LLM to quickly create a TTS response without going into the interaction loop. ")]
         public string SimpleText = "";
 
@@ -118,7 +127,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                 cloudServiceManager = cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
             }
             else
-            { Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct unless you are using the gemini live agent.. "); }
+            {
+                Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct unless you are using the gemini live agent.. ");
+            }
 
             systemPrompt = createSystemPrompt();
 
@@ -156,8 +167,8 @@ namespace IVH.Core.IntelligentVirtualAgent
                         webCamTexture = new WebCamTexture();
                     }
 
-                    webCamTexture.Play(); 
-                    
+                    webCamTexture.Play();
+
                     if (rawImage != null)
                     {
                         rawImage.texture = webCamTexture;
@@ -175,19 +186,25 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                 // }
             }
-
         }
+
         void Start()
         {
             FindPlayer();
-            eyeGazeController.playerTarget = player;       
+            eyeGazeController.playerTarget = player;
         }
+
         public Animator getAnimator()
         {
             return animator;
         }
+
         #region agent features
-        public virtual IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
+
+        public virtual IEnumerator Speak(string text)
+        {
+            yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService);
+        }
 
         public virtual async Task Listen()
         {
@@ -206,19 +223,23 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
 
         public void ExpressEmotion(string emotion)
+        {
+            if (emotionHandlerType == EmotionHandlerType.FACS)
             {
-                if (emotionHandlerType == EmotionHandlerType.FACS)
-                {
-                    Debug.Log("expressing emotion: " + emotion);
-                    emotionHandler.HandleEmotion(emotion, 0.5f, "during");
-                }
-                if (emotionHandlerType == EmotionHandlerType.CC4_Animation)
-                {
-                    faceAnimator.TriggerActionViaActionName(emotion);
-                }
+                Debug.Log("expressing emotion: " + emotion);
+                emotionHandler.HandleEmotion(emotion, 0.5f, "during");
             }
 
-        public void PerformAction(string action) { actionController.TriggerActionViaActionName(action); }
+            if (emotionHandlerType == EmotionHandlerType.CC4_Animation)
+            {
+                faceAnimator.TriggerActionViaActionName(emotion);
+            }
+        }
+
+        public void PerformAction(string action)
+        {
+            actionController.TriggerActionViaActionName(action);
+        }
 
         public virtual string createSystemPrompt()
         {
@@ -239,7 +260,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                 facialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetDetailFacialExpressionFiltered(facialExpressionFilter).ToArray());
                 facsFacialExpressionTools = JsonConvert.SerializeObject(faceAnimator.GetEnabledDidimoActionsAsGPTToolItems().ToArray());
             }
-            else { }
+            else
+            {
+            }
 
             string selectedFacialExpressionTools;
             switch (emotionHandlerType)
@@ -257,29 +280,31 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
             return $"Your name is:{agentName}. " +
-                $"You are {age} years old. " +
-                $"Your gender is {gender}. " +
-                $"Your occupation is {occupation}." +
-                "answer questions in first person persona like: I think... I am seeing..." +
-                "Choose the follwing approporiate body language, facial expression, and gaze behavior considering the entire conversation history" +
-                "Possible body language animations:" +
-                 bodyLanguageTools +
-                "Possible facial expression animations:" +
-                selectedFacialExpressionTools +
-                "Possible gaze behavior: " +
-                "(LookAtUser, LookIdly)." +
-                "Return your message structurally exactly with the following template: 'message: your response ||| body action: function name ||| face: function name ||| gaze:function name'" +
-                "If no actions needed, then return: 'message:your response ||| body action:none ||| face:none ||| gaze:none' " +
-                "Only choose one body language and one facial expression in one response" +
-                "Please be very short in your answer, in 1-2 sentences. " +
-                $"Additional information about you: {additionalDescription}.";
+                   $"You are {age} years old. " +
+                   $"Your gender is {gender}. " +
+                   $"Your occupation is {occupation}." +
+                   "answer questions in first person persona like: I think... I am seeing..." +
+                   "Choose the follwing approporiate body language, facial expression, and gaze behavior considering the entire conversation history" +
+                   "Possible body language animations:" +
+                   bodyLanguageTools +
+                   "Possible facial expression animations:" +
+                   selectedFacialExpressionTools +
+                   "Possible gaze behavior: " +
+                   "(LookAtUser, LookIdly)." +
+                   "Return your message structurally exactly with the following template: 'message: your response ||| body action: function name ||| face: function name ||| gaze:function name'" +
+                   "If no actions needed, then return: 'message:your response ||| body action:none ||| face:none ||| gaze:none' " +
+                   "Only choose one body language and one facial expression in one response" +
+                   "Please be very short in your answer, in 1-2 sentences. " +
+                   $"Additional information about you: {additionalDescription}.";
         }
+
         #endregion
 
         #region agent vision
+
         protected IEnumerator CaptureEgocentricImageCoroutine()
         {
-            Vector2Int res= new Vector2Int(512, 512);
+            Vector2Int res = new Vector2Int(512, 512);
             // Wait for rendering to complete so we don't get a blank image
             yield return new WaitForEndOfFrame();
 
@@ -291,7 +316,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             // 1. Use GetTemporary for better memory management than "new RenderTexture"
             RenderTexture rt = RenderTexture.GetTemporary(res.x, res.y, 24);
-            
+
             // 2. Render the Agent's camera view to this texture
             agentVisionCamera.targetTexture = rt;
             agentVisionCamera.Render();
@@ -309,11 +334,12 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             // 5. Encode to JPG (Much faster and lighter than PNG for LLM streaming)
             // Quality 50 is usually sufficient for Gemini Vision
-            egoImageData = texture2D.EncodeToJPG(50); 
+            egoImageData = texture2D.EncodeToJPG(50);
 
             // 6. Memory cleanup
             Destroy(texture2D);
         }
+
         protected void CaptureEgocentricImage(Vector2Int res)
         {
             // Take a snapshot of an image from egocentric agent's perspective
@@ -337,6 +363,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             egoImageData = texture2D.EncodeToPNG();
             Destroy(texture2D);
         }
+
         protected IEnumerator CaptureWebcamImage()
         {
             if (webCamTexture == null || !webCamTexture.isPlaying) yield break;
@@ -345,12 +372,12 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             // 1. Calculate dimensions (Max 512px width to save tokens/bandwidth)
             float aspect = (float)webCamTexture.width / webCamTexture.height;
-            int targetWidth = 512; 
+            int targetWidth = 512;
             int targetHeight = Mathf.RoundToInt(targetWidth / aspect);
 
             // 2. Use a Temporary RenderTexture for GPU-based resizing (Fast!)
             RenderTexture rt = RenderTexture.GetTemporary(targetWidth, targetHeight, 0);
-            
+
             // 3. Blit copies and resizes the webcam texture into the small RenderTexture
             Graphics.Blit(webCamTexture, rt);
 
@@ -366,7 +393,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             // 6. Encode to JPG (Quality 50 is sufficient for AI vision)
             // This creates the final byte[] array ready for Gemini
-            webCamImageData = resultTex.EncodeToJPG(50); 
+            webCamImageData = resultTex.EncodeToJPG(50);
 
             // 7. Cleanup CPU memory
             Destroy(resultTex);
@@ -395,26 +422,36 @@ namespace IVH.Core.IntelligentVirtualAgent
             // Encode the depth texture to a format if needed (e.g., PNG or custom raw format)
             egoDepthData = depthTexture.EncodeToPNG(); // Optional, depends on use case
             Destroy(depthTexture);
-
         }
 
         #endregion
 
         #region Agent Configuration and initialization
-        public CloudServiceManager getCloudServiceManager() { return cloudServiceManager; } 
-        public string getSystemPrompt() { return systemPrompt; }
 
-        public void setSystemPrompt(string prompt) { systemPrompt = prompt; }  
+        public CloudServiceManager getCloudServiceManager()
+        {
+            return cloudServiceManager;
+        }
+
+        public string getSystemPrompt()
+        {
+            return systemPrompt;
+        }
+
+        public void setSystemPrompt(string prompt)
+        {
+            systemPrompt = prompt;
+        }
+
         public virtual void SetupVirtualAgent()
         {
-
             if (agentPrefab != null && agentInstance == null)
             {
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
 
-                if (cloudServiceManagerPrefab != null) 
+                if (cloudServiceManagerPrefab != null)
                 {
                     cloudServiceManagerInstance = Instantiate(cloudServiceManagerPrefab, transform.position, transform.rotation);
                     cloudServiceManagerInstance.name = agentName + "_cloudServiceManager";
@@ -441,11 +478,12 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         public void DestroyVirtualAgent()
         {
-            if (ListeningIndicator != null && ThinkingIndicator!=null)
+            if (ListeningIndicator != null && ThinkingIndicator != null)
             {
                 ListeningIndicator.transform.SetParent(this.transform);
                 ThinkingIndicator.transform.SetParent(this.transform);
             }
+
             if (agentInstance != null)
             {
                 // Destroy the agent instance
@@ -461,7 +499,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 DestroyImmediate(cloudServiceManagerInstance);
             }
-
         }
 
         public void AssignCharacterController()
@@ -475,6 +512,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             characterController.height = agentHeight;
             characterController.center = new Vector3(0, agentHeight / 2, 0);
         }
+
         // Assign the animator controller to the agent
         public void AssignAnimatorController()
         {
@@ -493,7 +531,6 @@ namespace IVH.Core.IntelligentVirtualAgent
         // Function to attach the OVRLipSyncContextMorphTarget script
         public void SetupLipSync()
         {
-            // check if the agentinstance is not null
             if (agentInstance != null)
             {
                 // Attach Oculus LipSync scripts to the agent instance
@@ -509,7 +546,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                 // ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
                 Debug.Log("Skip Lip Sync for now");
-
             }
             else
             {
@@ -519,7 +555,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         public void SetupAgentVisionCamera()
         {
-
             Transform eyeTransform = FindEyeTransform(agentInstance);
 
             GameObject agentCameraGameObj = new GameObject("AgentVisionCamera");
@@ -565,6 +600,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 ThinkingIndicator.transform.SetParent(characterHead);
             }
         }
+
         public void SetupAudio()
         {
             // Get the SimpleChatBehavior component from this GameObject
@@ -580,7 +616,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 emotionHandler = agentInstance.AddComponent<EmotionHandler>();
                 emotionHandler.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
-                emotionHandler.characterType = characterType; 
+                emotionHandler.characterType = characterType;
             }
             else
             {
@@ -604,19 +640,20 @@ namespace IVH.Core.IntelligentVirtualAgent
         public void SetupAgentActionController()
         {
             SkinnedMeshRenderer agentBlendshape = FindSkinnedMeshRenderer(agentInstance);
-            
+
             if (agentBlendshape != null)
             {
                 AgentStaticExpressionManager expressionManager = agentInstance.AddComponent<AgentStaticExpressionManager>();
                 expressionManager.skinnedMeshRenderer = agentBlendshape;
                 expressionManager.SetFacialExpression(FacialExpressionType.HAPPY);
             }
-            
+
             actionController = agentInstance.AddComponent<AgentBodyMotionController>();
             faceAnimator = agentInstance.AddComponent<AgentFacialExpressionAnimator>();
             imageTriggerMode = ImageTriggerMode.Auto;
             descriptionMode = ToolDescriptionMode.SIMPLE;
         }
+
         public void SetupSimpleEyeBlink()
         {
             SkinnedMeshRenderer agentBlendshape = FindSkinnedMeshRenderer(agentInstance);
@@ -628,22 +665,24 @@ namespace IVH.Core.IntelligentVirtualAgent
                 {
                     characterBlinkBehavior.leftEyeBlendShapeName = "Eye_Blink_L";
                     characterBlinkBehavior.rightEyeBlendShapeName = "Eye_Blink_R";
-
                 }
+
                 if (characterType == CharacterType.Rocketbox)
                 {
                     characterBlinkBehavior.leftEyeBlendShapeName = "blendShape1.AK_09_EyeBlinkLeft";
                     characterBlinkBehavior.rightEyeBlendShapeName = "blendShape1.AK_10_EyeBlinkRight";
-
                 }
+
                 characterBlinkBehavior.faceRenderer = agentBlendshape;
             }
         }
+
         public void SetupEyeGazeController()
         {
             eyeGazeController = agentInstance.AddComponent<EyeGazeController>();
             eyeGazeController.characterSkinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
         }
+
         public float CalculateCharacterHeight()
         {
             /*            Animator animator = GetComponent<Animator>();
@@ -677,6 +716,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 totalBounds.Encapsulate(renderer.bounds);
             }
+
             return totalBounds;
         }
 
@@ -699,17 +739,18 @@ namespace IVH.Core.IntelligentVirtualAgent
                     return true;
                 }
             }
+
             return false;
         }
-        
+
         // A helper method to safely find a child by multiple possible names
         private Transform FindEyeTransform(GameObject agentInstance)
         {
             string[] possibleNames =
             {
-                "CC_Base_L_Eye",  // CC4 eye name
-                "Left_Eye",       // Alternative naming
-                "Bip01 LEye"      // Additional fallback
+                "CC_Base_L_Eye", // CC4 eye name
+                "Left_Eye", // Alternative naming
+                "Bip01 LEye" // Additional fallback
             };
 
             foreach (var name in possibleNames)
@@ -761,6 +802,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                     return child.gameObject;
                 }
             }
+
             return null;
         }
 
@@ -776,8 +818,10 @@ namespace IVH.Core.IntelligentVirtualAgent
                 if (result != null)
                     return result;
             }
+
             return null; // Child not found
         }
+
         public void FindPlayer()
         {
             // Try to find a VR player (Meta SDK)
@@ -797,5 +841,4 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         #endregion
     }
-
 }

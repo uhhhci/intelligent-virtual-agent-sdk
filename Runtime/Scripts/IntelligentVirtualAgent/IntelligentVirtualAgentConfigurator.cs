@@ -13,7 +13,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         public RuntimeAnimatorController animatorController;
 
         // Reference to the instantiated virtual agent
-        [SerializeField,HideInInspector] private GameObject agentInstance;
+        [SerializeField, HideInInspector] private GameObject agentInstance;
 
         private SimpleChatBehaviour simpleChatBehavior;
 
@@ -63,7 +63,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
 
 
-            // Assign the animator controller to the agent
+        // Assign the animator controller to the agent
         private void AssignAnimatorController()
         {
             // Check if the agentInstance has an Animator component
@@ -87,7 +87,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 Debug.Log("Skip for now!");
                 // Attach Oculus LipSync scripts to the agent instance
                 // OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
-                
+
                 // OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
                 // ovrLipSyncContext.audioLoopback = true;
                 // ovrLipSyncContext.audioSource= agentInstance.GetComponent<AudioSource>();
@@ -96,7 +96,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 // OVRLipSyncContextMorphTarget ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTarget>();
                 // ovrLipSyncContextMorphTarget.skinnedMeshRenderer= agentInstance.transform.Find("Body").GetComponent<SkinnedMeshRenderer>();//Assign the skinned Mesh Renderer of the Body 
                 // for (int i = 0; i < 15; ovrLipSyncContextMorphTarget.visemeToBlendTargets[i] = 52 + i++) ;//Assign Didimo character viseme blendshapes for oculus lipsync that range from body_blendshapes.shp_52_sil,..., body_blendshapes.shp_66_U and carry their indices inside their names: i.e., 52-66 to the morph target viseme to blend targets
-
             }
             else
             {
@@ -113,14 +112,14 @@ namespace IVH.Core.IntelligentVirtualAgent
                 // Attach EmotionHandler script to the agent instance
                 EmotionHandler emotionHandler = agentInstance.AddComponent<EmotionHandler>();
 
-                emotionHandler.skinnedMeshRenderer= agentInstance.transform.GetChild(1).GetComponent<SkinnedMeshRenderer>();//Assign the skinned Mesh Renderer of the Body 
+                emotionHandler.skinnedMeshRenderer = agentInstance.transform.GetChild(1).GetComponent<SkinnedMeshRenderer>(); //Assign the skinned Mesh Renderer of the Body 
             }
             else
             {
                 Debug.LogWarning("agent instance is null; cannot attach EmotionHandler script.");
             }
         }
-        
+
         public void DestroyVirtualAgent()
         {
             if (agentInstance.IsNotNull())
@@ -136,4 +135,3 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
     }
 }
-
