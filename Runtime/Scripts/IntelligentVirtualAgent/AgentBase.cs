@@ -128,7 +128,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             else
             {
-                Debug.LogWarning("Cloud service manager instance cloudn't be found! IVA won't work correct unless you are using the gemini live agent.. ");
+                Debug.LogWarning("Cloud service manager instance couldn't be found! IVA won't work correct unless you are using the gemini live agent.. ");
             }
 
             systemPrompt = createSystemPrompt();
@@ -153,38 +153,25 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             if (vision && targetCameraType == TargetCameraType.WebCam)
             {
-                if (vision && targetCameraType == TargetCameraType.WebCam)
+                // --- MODIFIED: Webcam Initialization ---
+                if (!string.IsNullOrEmpty(selectedWebCamName))
                 {
-                    // --- MODIFIED: Webcam Initialization ---
-                    if (!string.IsNullOrEmpty(selectedWebCamName))
-                    {
-                        // Initialize specific camera requested by Editor
-                        webCamTexture = new WebCamTexture(selectedWebCamName);
-                    }
-                    else
-                    {
-                        // Fallback to default
-                        webCamTexture = new WebCamTexture();
-                    }
-
-                    webCamTexture.Play();
-
-                    if (rawImage != null)
-                    {
-                        rawImage.texture = webCamTexture;
-                        rawImage.material.mainTexture = webCamTexture;
-                    }
+                    // Initialize specific camera requested by Editor
+                    webCamTexture = new WebCamTexture(selectedWebCamName);
                 }
-                // // Find and start the webcam
-                // webCamTexture = new WebCamTexture();
-                // webCamTexture.Play();  // Start the webcam
-                // if (rawImage != null)
-                // {
+                else
+                {
+                    // Fallback to default
+                    webCamTexture = new WebCamTexture();
+                }
 
-                //     rawImage.texture = webCamTexture;
-                //     rawImage.material.mainTexture = webCamTexture;
+                webCamTexture.Play();
 
-                // }
+                if (rawImage != null)
+                {
+                    rawImage.texture = webCamTexture;
+                    rawImage.material.mainTexture = webCamTexture;
+                }
             }
         }
 
