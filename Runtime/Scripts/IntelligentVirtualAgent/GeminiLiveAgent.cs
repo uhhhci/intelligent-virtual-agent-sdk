@@ -67,43 +67,17 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         protected override void Awake()
         {
+            Debug.Log("AgentInstance there? " + agentInstance);
+
             base.Awake();
             _realtimeWrapper = GetComponent<GeminiRealtimeWrapper>();
             if (_realtimeWrapper == null) _realtimeWrapper = gameObject.AddComponent<GeminiRealtimeWrapper>();
 
             _realtimeWrapper.OnSetupComplete += HandleReady;
             _realtimeWrapper.OnAudioReceived += HandleAudioReceived;
-
-            _realtimeWrapper.OnTextReceived += (text) =>
-            {
-                _fullTranscript.Append(text);
-                Debug.Log($"<color=white>Gemini:</color> {text}");
-            };
-            _realtimeWrapper.OnCommandReceived += (act, emo, gaze) =>
-            {
-                Debug.Log($"<color=cyan>CMD:</color> {act}");
-                StartCoroutine(QueueCommandUntilStopped(act, emo, gaze));
-            };
-
-            _realtimeWrapper.OnMoveCommand += (angle, distance, speed, faceMovementDirection) =>
-            {
-                Debug.Log($"<color=cyan>MOVE:</color> Angle: {angle}°, Dist: {distance}m, Speed: {speed}m/s, FaceDir: {faceMovementDirection}");
-
-                if (agentInstance == null) return;
-
-                Vector3 startPos = agentInstance.transform.position;
-                Vector3 flatForward = Vector3.ProjectOnPlane(agentInstance.transform.forward, Vector3.up).normalized;
-
-                Vector3 moveDirection = Quaternion.Euler(0f, angle, 0f) * flatForward;
-                Vector3 targetPos = startPos + moveDirection.normalized * distance;
-
-                if (agentLocomotion != null)
-                {
-                    agentLocomotion.MoveToPoint(targetPos, speed, faceMovementDirection);
-                    if (player != null)
-                        agentLocomotion.cameraPos = player.transform.position;
-                }
-            };
+            _realtimeWrapper.OnTextReceived += HandleTextReceived;
+            _realtimeWrapper.OnCommandReceived += HandleCommandReceived;
+            _realtimeWrapper.OnMoveCommand += HandleMoveCommand;
         }
 
         private void Start()
@@ -126,7 +100,6 @@ namespace IVH.Core.IntelligentVirtualAgent
         }
 
         public void Connect()
-
         {
             _isSessionReady = false;
             string noThinkingPrompt = "";
@@ -200,11 +173,44 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
+        private void HandleTextReceived(string text)
+        {
+            _fullTranscript.Append(text);
+            Debug.Log($"<color=white>Gemini:</color> {text}");
+        }
+        
+        private void HandleCommandReceived(string act, string emo, string gaze)
+        {
+            Debug.Log($"<color=cyan>CMD:</color> {act}");
+            StartCoroutine(QueueCommandUntilStopped(act, emo, gaze));
+        }
+        
+        
+        private void HandleMoveCommand(float angle, float distance, float speed, bool faceMovementDirection)
+        {
+            Debug.Log($"<color=cyan>MOVE:</color> Angle: {angle}°, Dist: {distance}m, Speed: {speed}m/s, FaceDir: {faceMovementDirection}");
+
+            if (agentInstance == null) return;
+
+            Vector3 startPos = agentInstance.transform.position;
+            Vector3 flatForward = Vector3.ProjectOnPlane(agentInstance.transform.forward, Vector3.up).normalized;
+
+            Vector3 moveDirection = Quaternion.Euler(0f, angle, 0f) * flatForward;
+            Vector3 targetPos = startPos + moveDirection.normalized * distance;
+
+            if (agentLocomotion != null)
+            {
+                agentLocomotion.MoveToPoint(targetPos, speed, faceMovementDirection);
+                if (player != null)
+                    agentLocomotion.cameraPos = player.transform.position;
+            }
+        }
+
         private IEnumerator SendGreetingDelayed()
         {
             yield return new WaitForSeconds(1.0f);
 
-            if (_realtimeWrapper.selectedModel == GeminiModelType.Flash25VertexAI || _realtimeWrapper.selectedModel == GeminiModelType.Flash25PreviewGoogleAI)
+            if (_realtimeWrapper.selectedModel is GeminiModelType.Flash25VertexAI or GeminiModelType.Flash25PreviewGoogleAI)
             {
                 // We MUST force the initial tool call to kickstart Vertex's state machine
                 string silentSetupPrompt = "System: STARTUP SEQUENCE.\n" +
@@ -551,7 +557,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
-
 
                 AssignAnimatorController();
                 //AssignCharacterController();
