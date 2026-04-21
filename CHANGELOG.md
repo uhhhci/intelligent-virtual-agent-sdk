@@ -1,5 +1,8 @@
 # Intelligent Virtual Human SDK Core (v1.0.0)
 All notable changes to this package are documented in this file.
+## 2.3.3 
+  - added echo prevention in ``GeminiVoiceOnlyAgent``
+
 ## 2.3.2
   - enabled toggle vision capability
 
