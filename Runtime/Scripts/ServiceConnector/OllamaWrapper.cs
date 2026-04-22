@@ -25,8 +25,8 @@ namespace IVH.Core.ServiceConnector
                     return "deepseek-r1:14b";
 /*                case FoundationModels.Ollama_Deepseek_R1_32B_LLM:
                     return "deepseek-r1:32b";
-                case FoundationModels.Ollama_Deepseek_R1_70B_LLM:*/
-                    return "deepseek-r1:70b";
+                case FoundationModels.Ollama_Deepseek_R1_70B_LLM:
+                    return "deepseek-r1:70b";*/
                 case FoundationModels.Ollama_Llama_3_2_3B_LLM:
                     return "llama3.2";
 /*                case FoundationModels.Ollama_Llama_3_3_70B_LLM:
