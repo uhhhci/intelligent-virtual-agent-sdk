@@ -115,7 +115,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             StopMicrophone();
 
-            if (_realtimeWrapper != null) _realtimeWrapper.DisconnectAsync();
+            if (_realtimeWrapper != null) _ = _realtimeWrapper.DisconnectAsync();
         }
 
 

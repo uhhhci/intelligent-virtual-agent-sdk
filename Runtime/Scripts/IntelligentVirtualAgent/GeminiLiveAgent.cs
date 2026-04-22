@@ -94,7 +94,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             if (_visionCoroutine != null) StopCoroutine(_visionCoroutine);
             StopMicrophone();
-            if (_realtimeWrapper != null) _realtimeWrapper.DisconnectAsync();
+            if (_realtimeWrapper != null) _ = _realtimeWrapper.DisconnectAsync();
         }
 
         private void Update()
