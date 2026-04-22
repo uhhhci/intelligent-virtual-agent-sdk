@@ -809,7 +809,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             return null; // Child not found
         }
 
-        public void FindPlayer()
+        protected void FindPlayer()
         {
             // Try to find a VR player (Meta SDK)
             GameObject vrPlayer = GameObject.Find("OVRCameraRig");

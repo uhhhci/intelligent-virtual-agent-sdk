@@ -17,13 +17,17 @@ namespace IVH.Core.IntelligentVirtualAgent
     [RequireComponent(typeof(GeminiRealtimeWrapper))]
     public class GeminiLiveAgent : AgentBase, IGeminiAgent
     {
-        [Header("Gemini Configuration")] public string voiceName = "Puck";
+        [Header("Gemini Configuration")]
+        public string voiceName = "Puck";
         public bool autoConnectOnStart = true;
 
-        [Header("Audio Input")] public string microphoneDeviceName;
+        [Header("Audio Input")]
+        public string microphoneDeviceName;
+
         [Range(0.1f, 10f)] public float inputGain = 2.0f;
 
-        [Header("VAD & Interruption")] [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
+        [Header("VAD & Interruption")]
+        [Tooltip("If enabled, the agent will stop talking when it detects your voice.")]
         public bool enableVocalInterruption = true;
 
         [Tooltip("Mutes the microphone while the agent is speaking to prevent it from hearing its own echo (Use if not wearing headphones). Note: Disables interruption!")]
@@ -178,14 +182,14 @@ namespace IVH.Core.IntelligentVirtualAgent
             _fullTranscript.Append(text);
             Debug.Log($"<color=white>Gemini:</color> {text}");
         }
-        
+
         private void HandleCommandReceived(string act, string emo, string gaze)
         {
             Debug.Log($"<color=cyan>CMD:</color> {act}");
             StartCoroutine(QueueCommandUntilStopped(act, emo, gaze));
         }
-        
-        
+
+
         private void HandleMoveCommand(float angle, float distance, float speed, bool faceMovementDirection)
         {
             Debug.Log($"<color=cyan>MOVE:</color> Angle: {angle}°, Dist: {distance}m, Speed: {speed}m/s, FaceDir: {faceMovementDirection}");
