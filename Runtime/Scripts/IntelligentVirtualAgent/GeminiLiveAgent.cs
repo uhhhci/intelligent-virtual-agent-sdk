@@ -561,7 +561,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
-
+                
                 AssignAnimatorController();
                 //AssignCharacterController();
                 SetupLipSync();

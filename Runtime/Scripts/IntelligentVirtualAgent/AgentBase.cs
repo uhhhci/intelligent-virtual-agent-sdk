@@ -1,16 +1,12 @@
-using System;
 using System.Collections;
-using UnityEngine;
-using UnityEditor;
-using IVH.Core.ServiceConnector;
-using IVH.Core.Actions;
-using Newtonsoft.Json;
-using IVH.Core.Utils.StaticHelper;
-using UnityEngine.UI;
-using System.Runtime.Versioning;
-using System.ComponentModel.Design.Serialization;
 using System.Threading.Tasks;
+using IVH.Core.Actions;
+using IVH.Core.ServiceConnector;
+using Newtonsoft.Json;
+using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.UI;
+using uLipSync;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
@@ -93,6 +89,12 @@ namespace IVH.Core.IntelligentVirtualAgent
         public bool enableLocomotion = false;
 
         [HideInInspector] public AgentLocomotion agentLocomotion;
+
+        [Header("Lip Sync")]
+        [Tooltip("uLipSync Profile asset — bake one via Window > uLipSync > Profile Baker.")]
+        public Profile lipSyncProfile;
+        [Tooltip("Phoneme → blendshape mappings. Set phoneme name (e.g. A, I, U, E, O, N) and blendshape index on the character's SkinnedMeshRenderer. The renderer is assigned automatically at runtime.")]
+        public System.Collections.Generic.List<uLipSyncBlendShape.BlendShapeInfo> lipSyncBlendShapes = new();
 
         [Header("STT Trigger Settings")] [Tooltip("Choose automatic, then the IVA will respond to any STT input. Choose Triggerphase, then the IVA will only respond when hearing trigger phrases such as: hello AI, hey AI, etc. ")]
         public AIWakeupMode wakeupMode = AIWakeupMode.Automatic;
@@ -515,29 +517,29 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
-        // Function to attach the OVRLipSyncContextMorphTarget script
         public void SetupLipSync()
         {
-            if (agentInstance != null)
+            if (agentInstance == null)
             {
-                // Attach Oculus LipSync scripts to the agent instance
-
-                // OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
-
-                // OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
-                // ovrLipSyncContext.audioLoopback = true;
-                // ovrLipSyncContext.audioSource = agentInstance.GetComponent<AudioSource>();
-
-
-                // OVRLipSyncContextMorphTargetExtended ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTargetExtended>();
-
-                // ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
-                Debug.Log("Skip Lip Sync for now");
+                Debug.LogWarning("AgentBase.SetupLipSync: agentInstance is null.");
+                return;
             }
-            else
+
+            var lipSync = agentInstance.AddComponent<uLipSync.uLipSync>();
+            if (lipSyncProfile != null)
+                lipSync.profile = lipSyncProfile;
+
+            var morphTarget = agentInstance.AddComponent<uLipSyncBlendShape>();
+            SkinnedMeshRenderer skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+            morphTarget.skinnedMeshRenderer = skinnedMeshRenderer;
+
+            foreach (var info in lipSyncBlendShapes)
             {
-                Debug.LogWarning("agent instance is null; cannot attach ovrlipsyn scripts.");
+                // info.skinnedMeshRenderer = skinnedMeshRenderer;
+                morphTarget.blendShapes.Add(info);
             }
+
+            lipSync.onLipSyncUpdate.AddListener(morphTarget.OnLipSyncUpdate);
         }
 
         public void SetupAgentVisionCamera()
@@ -822,6 +824,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             // If no VR player, use the main camera as fallback
             if (Camera.main != null)
             {
+                Debug.Log("Using main camera!");
                 player = Camera.main.transform;
             }
         }
