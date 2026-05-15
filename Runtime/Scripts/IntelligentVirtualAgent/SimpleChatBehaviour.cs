@@ -7,7 +7,7 @@ public class SimpleChatBehaviour : MonoBehaviour
 {
     // Service Connector
     private ServiceConnectorManager _serviceConnectorManager;
-    
+
     // Agent
     public AudioSource agentAudioSource;
 
@@ -16,13 +16,13 @@ public class SimpleChatBehaviour : MonoBehaviour
     // Behaviour context
     public string contextMessage = "A discussion about Soccer.";
     public string userMessage = "Hello, I am Erik!";
-    public string agentMessage= "Hi Erik, now that you are here, let's discuss Soccer!";
+    public string agentMessage = "Hi Erik, now that you are here, let's discuss Soccer!";
     public string interactionUserMessage = "I like goals!";
 
     private List<GPTMessage> _conversation;
 
     private Coroutine _interactionLoop;
-    
+
     /// <summary>
     /// Called when an script instance is being loaded.
     /// </summary>
@@ -48,11 +48,11 @@ public class SimpleChatBehaviour : MonoBehaviour
     public void StartSimpleChat()
     {
         InitializeConversation();
-        
+
         // Start interaction loop as coroutine
         _interactionLoop = StartCoroutine(InteractionLoop());
     }
-    
+
     /// <summary>
     /// Stops the simple chat behaviour of the agent.
     /// </summary>
