@@ -44,11 +44,24 @@ namespace IVH.Core.Utils
             _hasAttemptedAuthenticationLoad = true;
 
             // Primary method of authentication: auth.json File
-            var auth = LoadAuthenticationFromFile();
+            var auth = LoadAuthenticationFromEnvironmentVariables();
 
             if (auth == null)
             {
-                auth = LoadAuthenticationFromEnvironmentVariables();
+                auth = LoadAuthenticationFromFile();
+                if (auth != null)
+                {
+                    Debug.Log("Found authentication from file!");
+                }
+            }
+            else
+            {
+                Debug.Log("Found authentication from ENV!");
+            }
+
+            if (auth == null)
+            {
+                Debug.LogWarning("No authentication found.");
             }
 
             _cachedAuth = auth;

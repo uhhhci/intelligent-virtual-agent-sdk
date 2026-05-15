@@ -1,9 +1,11 @@
 using IVH.Core.Utils.StaticHelper;
 using UnityEngine;
-
+using System.Collections.Generic;
+using uLipSync;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
+    
     public class IntelligentVirtualAgentConfigurator : MonoBehaviour
     {
         // Start is called before the first frame update
@@ -16,6 +18,11 @@ namespace IVH.Core.IntelligentVirtualAgent
         [SerializeField, HideInInspector] private GameObject agentInstance;
 
         private SimpleChatBehaviour simpleChatBehavior;
+
+        [Tooltip("uLipSync Profile asset.")]
+        public Profile lipSyncProfile;
+        [Tooltip("Phoneme → blendshape mappings. The SkinnedMeshRenderer is assigned automatically at runtime.")]
+        public List<uLipSyncBlendShape.BlendShapeInfo> lipSyncBlendShapes = new();
 
         public void SetupVirtualAgent()
         {
@@ -78,29 +85,57 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
-        // Function to attach the OVRLipSyncContextMorphTarget script
         private void SetupLipSync()
         {
-            // check if the agentinstance is not null
-            if (agentInstance != null)
+            Debug.Log("Setting up LipSync");
+            if (agentInstance == null)
             {
-                Debug.Log("Skip for now!");
-                // Attach Oculus LipSync scripts to the agent instance
-                // OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
-
-                // OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();
-                // ovrLipSyncContext.audioLoopback = true;
-                // ovrLipSyncContext.audioSource= agentInstance.GetComponent<AudioSource>();
-
-
-                // OVRLipSyncContextMorphTarget ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTarget>();
-                // ovrLipSyncContextMorphTarget.skinnedMeshRenderer= agentInstance.transform.Find("Body").GetComponent<SkinnedMeshRenderer>();//Assign the skinned Mesh Renderer of the Body 
-                // for (int i = 0; i < 15; ovrLipSyncContextMorphTarget.visemeToBlendTargets[i] = 52 + i++) ;//Assign Didimo character viseme blendshapes for oculus lipsync that range from body_blendshapes.shp_52_sil,..., body_blendshapes.shp_66_U and carry their indices inside their names: i.e., 52-66 to the morph target viseme to blend targets
+                Debug.LogWarning("IntelligentVirtualAgentConfigurator.SetupLipSync: agentInstance is null.");
+                return;
             }
-            else
+
+            var lipSync = agentInstance.AddComponent<uLipSync.uLipSync>();
+            if (lipSyncProfile != null)
+                lipSync.profile = lipSyncProfile;
+
+            var blendShapeComp = agentInstance.AddComponent<uLipSyncBlendShape>();
+
+            var smr = FindFaceSkinnedMeshRenderer(agentInstance);
+            if (smr == null)
+                Debug.LogWarning("IntelligentVirtualAgentConfigurator.SetupLipSync: no SkinnedMeshRenderer with blend shapes found on the agent.");
+            blendShapeComp.skinnedMeshRenderer = smr;
+            Debug.LogError(smr.sharedMesh.blendShapeCount);
+
+            foreach (var blendShape in lipSyncBlendShapes)
             {
-                Debug.LogWarning("agent instance is null; cannot attach ovrlipsyn scripts.");
+                blendShapeComp.blendShapes.Add(blendShape);
             }
+
+            Debug.Log("Added blend shapes: " + blendShapeComp.blendShapes.Count);
+
+#if UNITY_EDITOR
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(
+                lipSync.onLipSyncUpdate, blendShapeComp.OnLipSyncUpdate);
+#else
+            lipSync.onLipSyncUpdate.AddListener(blendShapeComp.OnLipSyncUpdate);
+#endif
+        }
+
+        private static SkinnedMeshRenderer FindFaceSkinnedMeshRenderer(GameObject root)
+        {
+            SkinnedMeshRenderer best = null;
+            int bestCount = 0;
+            foreach (var s in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                var mesh = s.sharedMesh;
+                if (mesh == null) continue;
+                if (mesh.blendShapeCount > bestCount)
+                {
+                    best = s;
+                    bestCount = mesh.blendShapeCount;
+                }
+            }
+            return best;
         }
 
         // Function to attach the EmotionHandler script

@@ -13,7 +13,7 @@ namespace IVH.Core.IntelligentVirtualAgent
     // similar to basic social interactions
     public abstract class AgentBase : MonoBehaviour
     {
-        [Header("General Agent Attributes")] 
+        [Header("General Agent Attributes")]
         public GameObject agentPrefab;
 
         [Tooltip("Choose your cloud service manager prefab, which can be found in the IVA-SDK-Core>Runtime>Prefab folder. ")]
@@ -47,7 +47,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         public VoiceRecognitionService STTService;
         protected string systemPrompt = "";
 
-        [Header("Agent Vision Settings")] 
+        [Header("Agent Vision Settings")]
         [HideInInspector]
         public bool vision = false;
 
@@ -93,6 +93,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Header("Lip Sync")]
         [Tooltip("uLipSync Profile asset — bake one via Window > uLipSync > Profile Baker.")]
         public Profile lipSyncProfile;
+
         [Tooltip("Phoneme → blendshape mappings. Set phoneme name (e.g. A, I, U, E, O, N) and blendshape index on the character's SkinnedMeshRenderer. The renderer is assigned automatically at runtime.")]
         public System.Collections.Generic.List<uLipSyncBlendShape.BlendShapeInfo> lipSyncBlendShapes = new();
 
@@ -118,7 +119,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         [HideInInspector] public GameObject ListeningIndicator;
         [HideInInspector] public GameObject ThinkingIndicator;
 
-        [HideInInspector] [Header("Instant Actor")] 
+        [HideInInspector] [Header("Instant Actor")]
         [Tooltip("This text will mostly be used by the 'QuickSpeech' function for an LLM to quickly create a TTS response without going into the interaction loop. ")]
         public string SimpleText = "";
 
@@ -532,6 +533,8 @@ namespace IVH.Core.IntelligentVirtualAgent
             var morphTarget = agentInstance.AddComponent<uLipSyncBlendShape>();
             SkinnedMeshRenderer skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
             morphTarget.skinnedMeshRenderer = skinnedMeshRenderer;
+
+            Debug.Log("Number of bones in mesh: " + skinnedMeshRenderer.bones.Length);
 
             foreach (var info in lipSyncBlendShapes)
             {
