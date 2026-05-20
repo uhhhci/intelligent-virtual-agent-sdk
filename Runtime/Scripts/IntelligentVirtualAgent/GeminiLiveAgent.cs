@@ -71,8 +71,6 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         protected override void Awake()
         {
-            Debug.Log("AgentInstance there? " + agentInstance);
-
             base.Awake();
             _realtimeWrapper = GetComponent<GeminiRealtimeWrapper>();
             if (_realtimeWrapper == null) _realtimeWrapper = gameObject.AddComponent<GeminiRealtimeWrapper>();

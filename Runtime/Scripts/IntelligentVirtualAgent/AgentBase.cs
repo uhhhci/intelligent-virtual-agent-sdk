@@ -827,7 +827,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             // If no VR player, use the main camera as fallback
             if (Camera.main != null)
             {
-                Debug.Log("Using main camera!");
                 player = Camera.main.transform;
             }
         }
