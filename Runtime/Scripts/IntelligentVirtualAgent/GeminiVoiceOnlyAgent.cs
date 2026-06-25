@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using IVH.Core.ServiceConnector.Gemini.Realtime;
@@ -222,25 +223,41 @@ namespace IVH.Core.IntelligentVirtualAgent
         // --- Audio Logic ---
 
         private void StartMicrophone()
-
         {
             if (_isRecording) return;
 
-            if (string.IsNullOrEmpty(microphoneDeviceName) && Microphone.devices.Length > 0)
+            bool noMicrophoneAvailable = Microphone.devices.Length == 0;
+            if (noMicrophoneAvailable)
+            {
+                Debug.LogWarning("No microphone detected. Skipping initialization.");
+                return;
+            }
 
+            // Check if selected microphone is even available, because while building for an external device that has a
+            // microphone built-in you may wanna use that one
+            bool isSelectedMicrophoneAvailable = Microphone.devices.Contains(microphoneDeviceName);
+
+            // Use default device if no microphone is selected (should always be in first in Microphone.devices)
+            var useDefaultDevice = string.IsNullOrEmpty(microphoneDeviceName) && Microphone.devices.Length > 0;
+            if (useDefaultDevice || !isSelectedMicrophoneAvailable)
+            {
                 microphoneDeviceName = Microphone.devices[0];
-
+            }
 
             _micClip = Microphone.Start(microphoneDeviceName, true, 3599, 16000);
+            if (_micClip == null)
+            {
+                Debug.LogWarning("Microphone not found. Please check your input.");
+                return;
+            }
 
             while (Microphone.GetPosition(microphoneDeviceName) <= 0)
             {
             }
 
-
             _lastMicPos = 0;
-
             _isRecording = true;
+            Debug.Log($"Mic Started: {microphoneDeviceName}");
         }
 
 
