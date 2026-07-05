@@ -135,9 +135,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                     }
                 }
 
-                cached.Method.Invoke(cached.OriginalTool.targetComponent, invokeArgs);
+                object result = cached.Method.Invoke(cached.OriginalTool.targetComponent, invokeArgs);
 
-                await _wrapper.SendGenericToolResponseAsync(callId, toolName, new { status = "success" });
+                await _wrapper.SendGenericToolResponseAsync(callId, toolName, result ?? (object) new { status = "success" });
             }
             catch (Exception e)
             {
