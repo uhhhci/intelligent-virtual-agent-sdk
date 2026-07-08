@@ -124,12 +124,17 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             string finalPrompt = dynamicPrompt + noThinkingPrompt;
             var toolManager = GetComponent<GeminiToolManager>();
-            if (toolManager != null && toolManager.definedTools.Count > 0)
+            // WICHTIG: gegen die tatsächlich registrierten Tools prüfen, nicht nur gegen definedTools.
+            // Attribut-basierte Tools (toolProviders) landen ebenfalls im Cache, aber nicht in definedTools.
+            var toolDeclarations = toolManager != null ? toolManager.GetDynamicToolDeclarations() : null;
+            if (toolDeclarations != null && toolDeclarations.Count > 0)
             {
-                _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolManager.GetDynamicToolDeclarations());
+                _ = _realtimeWrapper.ConnectWithDynamicToolsAsync(finalPrompt, voiceName, toolDeclarations);
             }
             else
             {
+                Debug.LogWarning("[Gemini Tools] Connecting WITHOUT tools — no tools registered " +
+                                 "(check definedTools and toolProviders on the GeminiToolManager).");
                 if (characterType == CharacterType.CC4OrDIDIMO && enableLocomotion == true)
                 {
                     // has locomotion is true

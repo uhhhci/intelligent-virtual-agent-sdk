@@ -13,8 +13,17 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         {
             serializedObject.Update();
 
+            // Attribut-basierte Tools: Komponenten, deren mit [GeminiTool] markierte Methoden
+            // automatisch registriert werden (Schema wird aus der Signatur generiert).
+            EditorGUILayout.LabelField("Attribute-based Tools", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Komponente hier reinziehen, um alle ihre [GeminiTool]-Methoden automatisch zu " +
+                "registrieren. Kein manuelles JSON, Parameternamen stimmen immer.", MessageType.None);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("toolProviders"), true);
+            EditorGUILayout.Space();
+
             SerializedProperty toolsProp = serializedObject.FindProperty("definedTools");
-            
+
             EditorGUILayout.LabelField("Dynamic Tools Configuration", EditorStyles.boldLabel);
             EditorGUILayout.Space();
 

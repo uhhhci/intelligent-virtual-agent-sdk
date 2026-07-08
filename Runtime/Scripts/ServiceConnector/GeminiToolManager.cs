@@ -13,7 +13,12 @@ namespace IVH.Core.IntelligentVirtualAgent
     public class GeminiToolManager : MonoBehaviour
     {
         public List<GeminiDynamicTool> definedTools = new List<GeminiDynamicTool>();
-        
+
+        [Header("Attribute-based Tools")]
+        [Tooltip("Komponenten, deren mit [GeminiTool] markierte Methoden automatisch als Tools " +
+                 "registriert werden. Das Parameter-Schema wird aus der Methodensignatur generiert.")]
+        public List<MonoBehaviour> toolProviders = new List<MonoBehaviour>();
+
         private GeminiRealtimeWrapper _wrapper;
         
         private class CachedTool
@@ -91,6 +96,128 @@ namespace IVH.Core.IntelligentVirtualAgent
                     SchemaDeclaration = decl // <-- Add this line!
                 };
             }
+
+            RegisterAttributeTools();
+        }
+
+        // Scannt alle toolProviders nach [GeminiTool]-Methoden und registriert sie mit
+        // automatisch aus der Signatur generiertem Parameter-Schema.
+        private void RegisterAttributeTools()
+        {
+            foreach (var provider in toolProviders)
+            {
+                if (provider == null)
+                {
+                    Debug.LogWarning("[Gemini Tools] A toolProviders entry is null (empty slot in the list). Skipping.");
+                    continue;
+                }
+
+                int registeredForProvider = 0;
+                var methods = provider.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public);
+                foreach (var method in methods)
+                {
+                    var attr = method.GetCustomAttribute<GeminiToolAttribute>();
+                    if (attr == null) continue;
+
+                    string toolName = string.IsNullOrEmpty(attr.Name) ? method.Name : attr.Name;
+                    string safeToolName = System.Text.RegularExpressions.Regex.Replace(toolName, @"[^a-zA-Z0-9_-]", "_").ToLower();
+
+                    if (_toolCache.ContainsKey(safeToolName))
+                    {
+                        Debug.LogWarning($"[Gemini Tools] Tool '{safeToolName}' from {provider.name}.{method.Name} " +
+                                         $"is already registered (duplicate name). Skipping.");
+                        continue;
+                    }
+
+                    JObject parametersSchema = BuildSchemaFromMethod(method);
+
+                    var decl = new JObject
+                    {
+                        ["name"] = safeToolName,
+                        ["description"] = attr.Description,
+                        ["parameters"] = parametersSchema
+                    };
+
+                    _toolCache[safeToolName] = new CachedTool
+                    {
+                        // OriginalTool trägt nur die für die Ausführung nötige Ziel-Referenz.
+                        OriginalTool = new GeminiDynamicTool
+                        {
+                            toolName = toolName,
+                            description = attr.Description,
+                            targetComponent = provider,
+                            targetMethodName = method.Name,
+                            parametersJson = parametersSchema.ToString()
+                        },
+                        Method = method,
+                        Parameters = method.GetParameters(),
+                        SchemaDeclaration = decl
+                    };
+
+                    registeredForProvider++;
+                }
+
+                if (registeredForProvider == 0)
+                {
+                    Debug.LogWarning($"[Gemini Tools] Provider '{provider.name}' ({provider.GetType().Name}) " +
+                                     $"has no [GeminiTool] methods — nothing registered from it.");
+                }
+            }
+        }
+
+        // Baut ein JSON-Schema-Objekt aus den Parametern einer Methode.
+        private JObject BuildSchemaFromMethod(MethodInfo method)
+        {
+            var properties = new JObject();
+            var required = new JArray();
+
+            foreach (var p in method.GetParameters())
+            {
+                JArray enumValues;
+                string jsonType = MapClrTypeToJsonType(p.ParameterType, out enumValues);
+
+                var propSchema = new JObject { ["type"] = jsonType };
+                if (enumValues != null) propSchema["enum"] = enumValues;
+
+                var paramAttr = p.GetCustomAttribute<GeminiToolParamAttribute>();
+                if (paramAttr != null && !string.IsNullOrEmpty(paramAttr.Description))
+                    propSchema["description"] = paramAttr.Description;
+
+                properties[p.Name] = propSchema;
+
+                // Parameter ohne Default-Wert sind Pflicht.
+                if (!p.HasDefaultValue) required.Add(p.Name);
+            }
+
+            var schema = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = properties
+            };
+            // Leeres "required" weglassen (Gemini akzeptiert sonst teils keine Deklaration).
+            if (required.Count > 0) schema["required"] = required;
+
+            return schema;
+        }
+
+        // Bildet einen C#-Typ auf den passenden JSON-Schema-Typ ab. enumValues wird nur bei Enums gesetzt.
+        private string MapClrTypeToJsonType(Type type, out JArray enumValues)
+        {
+            enumValues = null;
+
+            if (type.IsEnum)
+            {
+                enumValues = new JArray();
+                foreach (var name in Enum.GetNames(type)) enumValues.Add(name);
+                return "string";
+            }
+            if (type == typeof(bool)) return "boolean";
+            if (type == typeof(string)) return "string";
+            if (type == typeof(float) || type == typeof(double) || type == typeof(decimal)) return "number";
+            if (type == typeof(int) || type == typeof(long) || type == typeof(short) || type == typeof(byte)) return "integer";
+
+            // Fallback: unbekannte Typen als String deklarieren.
+            return "string";
         }
 
         public JArray GetDynamicToolDeclarations()
