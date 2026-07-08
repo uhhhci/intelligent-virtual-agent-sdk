@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
@@ -129,7 +130,15 @@ namespace IVH.Core.IntelligentVirtualAgent
                         }
                         else
                         {
-                            invokeArgs[i] = paramInfo.HasDefaultValue ? paramInfo.DefaultValue : 
+                            // Der Wert konnte nicht gebunden werden: Meistens weicht der Property-Name im
+                            // parametersJson-Schema vom C#-Parameternamen ab. Das ist die häufigste Fehlerquelle,
+                            // deshalb warnen wir explizit statt still null/default einzusetzen.
+                            Debug.LogWarning(
+                                $"[Gemini Tools] Argument '{paramInfo.Name}' for tool '{toolName}' was not found in the " +
+                                $"call arguments (got: [{string.Join(", ", ((JObject)args).Properties().Select(p => p.Name))}]). " +
+                                $"Check that the parametersJson property name matches the C# parameter name. Using default value.");
+
+                            invokeArgs[i] = paramInfo.HasDefaultValue ? paramInfo.DefaultValue :
                                             (paramInfo.ParameterType.IsValueType ? Activator.CreateInstance(paramInfo.ParameterType) : null);
                         }
                     }
@@ -141,8 +150,14 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             catch (Exception e)
             {
-                Debug.LogError($"[Gemini Tools] Execution Error: {e.Message}");
-                await _wrapper.SendGenericToolResponseAsync(callId, toolName, new { error = e.Message });
+                // Method.Invoke verpackt Ausnahmen der Zielmethode in eine TargetInvocationException,
+                // deren Message immer "Exception has been thrown by the target of an invocation" lautet.
+                // Wir entpacken die echte Ursache, damit Typ, Meldung und Stacktrace im Log erscheinen.
+                Exception actual = (e as TargetInvocationException)?.InnerException ?? e;
+                Debug.LogError(
+                    $"[Gemini Tools] Execution Error in '{toolName}': " +
+                    $"{actual.GetType().Name}: {actual.Message}\n{actual.StackTrace}");
+                await _wrapper.SendGenericToolResponseAsync(callId, toolName, new { error = actual.Message });
             }
         }
     }
