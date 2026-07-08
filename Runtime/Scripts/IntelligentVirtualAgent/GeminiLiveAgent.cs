@@ -60,6 +60,20 @@ namespace IVH.Core.IntelligentVirtualAgent
         private AudioClip _micClip;
         private int _lastMicPosition;
         private bool _isRecording;
+
+        // --- Microphone health / visionOS AVAudioSession workaround ---
+        // On visionOS the AVAudioSession can start in a playback-only category, causing the
+        // mic to capture a tiny initial burst and then freeze (Microphone.GetPosition stops
+        // advancing). We defer the start slightly and watch for a frozen position to self-heal.
+        [Tooltip("Delay (seconds) before starting the microphone, so the audio session is fully established first (visionOS workaround).")]
+        public float micStartDelay = 1.0f;
+
+        [Tooltip("If the microphone position stops advancing for this long while recording, the mic is restarted automatically (visionOS freeze workaround).")]
+        public float micFreezeTimeout = 2.0f;
+
+        private bool _micStarting;
+        private int _lastRawMicPosition;
+        private float _lastMicAdvanceTime;
         private bool _isSessionReady = false;
         private bool _handshakeComplete = false;
         private float _ignoreAudioUntil = 0f;
@@ -157,7 +171,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             Debug.Log("<color=green>Gemini Live Ready!</color>");
             _isSessionReady = true;
-            StartMicrophone();
+            StartCoroutine(StartMicrophoneRoutine());
             StartCoroutine(SendGreetingDelayed());
             // Start automatic vision if enabled
             if (vision)
@@ -239,15 +253,20 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
-        private void StartMicrophone()
+        private IEnumerator StartMicrophoneRoutine()
         {
-            if (_isRecording) return;
+            if (_isRecording || _micStarting) yield break;
+            _micStarting = true;
+
+            // Give the audio session time to settle before grabbing the mic (visionOS workaround).
+            if (micStartDelay > 0f) yield return new WaitForSeconds(micStartDelay);
 
             bool noMicrophoneAvailable = Microphone.devices.Length == 0;
             if (noMicrophoneAvailable)
             {
                 Debug.LogWarning("No microphone detected. Skipping initialization.");
-                return;
+                _micStarting = false;
+                yield break;
             }
 
             // Check if selected microphone is even available, because while building for an external device that has a
@@ -265,16 +284,40 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (_micClip == null)
             {
                 Debug.LogWarning("Microphone not found. Please check your input.");
-                return;
+                _micStarting = false;
+                yield break;
             }
 
-            while (Microphone.GetPosition(microphoneDeviceName) <= 0)
+            // Wait (without blocking the main thread) until the mic actually starts delivering
+            // samples. If it never does within the timeout, the audio session refused recording.
+            float waitTimeout = 5f;
+            while (Microphone.GetPosition(microphoneDeviceName) <= 0 && waitTimeout > 0f)
             {
+                waitTimeout -= Time.deltaTime;
+                yield return null;
+            }
+
+            if (Microphone.GetPosition(microphoneDeviceName) <= 0)
+            {
+                Debug.LogWarning("Microphone started but never delivered samples (audio session likely refused recording). Retrying.");
+                Microphone.End(microphoneDeviceName);
+                _micStarting = false;
+                yield break;
             }
 
             _lastMicPosition = 0;
+            _lastRawMicPosition = Microphone.GetPosition(microphoneDeviceName);
+            _lastMicAdvanceTime = Time.time;
             _isRecording = true;
+            _micStarting = false;
             Debug.Log($"Mic Started: {microphoneDeviceName}");
+        }
+
+        private void RestartMicrophone()
+        {
+            Debug.LogWarning("Microphone debug: position frozen — restarting microphone.");
+            StopMicrophone();
+            StartCoroutine(StartMicrophoneRoutine());
         }
 
         private void StopMicrophone()
@@ -296,10 +339,27 @@ namespace IVH.Core.IntelligentVirtualAgent
                 _lastMicPosition = 0;
                 return;
             }
-
+            // Watchdog: a healthy mic advances GetPosition continuously (~16000 samples/sec),
+            // regardless of whether the user speaks. If it stops advancing, the visionOS audio
+            // session froze the recording — restart it instead of silently listening to nothing.
+            if (currentMicPosition == _lastRawMicPosition)
+            {
+                if (Time.time - _lastMicAdvanceTime > micFreezeTimeout)
+                {
+                    RestartMicrophone();
+                    return;
+                }
+            }
+            else
+            {
+                _lastRawMicPosition = currentMicPosition;
+                _lastMicAdvanceTime = Time.time;
+            }
+            
             int recordingPositionDifference = currentMicPosition - _lastMicPosition;
             if (recordingPositionDifference > 800) // ~50ms chunks
             {
+
                 float[] samples = new float[recordingPositionDifference];
                 _micClip.GetData(samples, _lastMicPosition);
 
