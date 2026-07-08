@@ -25,7 +25,7 @@ namespace IVH.Core.Utils.Patterns
         private static T CreateSingleton()
         {
             T instance;
-            var existingInstances = FindObjectsOfType<T>();
+            var existingInstances = FindObjectsByType<T>(FindObjectsSortMode.None);
             if (existingInstances.Length == 1)
             {
                 instance = existingInstances[0];

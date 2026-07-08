@@ -1,8 +1,9 @@
-using UnityEngine;
+using System;
 using UnityEditor;
-using IVH.Core.IntelligentVirtualAgent; // Matches your agent's namespace
-using IVH.Core.ServiceConnector;
-using UnityEngine.AI; 
+using UnityEngine;
+using UnityEngine.AI;
+// Matches your agent's namespace
+
 namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 {
     [CustomEditor(typeof(GeminiLiveAgent))]
@@ -33,15 +34,19 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
         // Basic agent prop. 
         private SerializedProperty characterTypeProp;
+
         private SerializedProperty enableLocomotionProp;
+
         // locomotion related
-        private bool isNavMeshInScene; 
+        private bool isNavMeshInScene;
+
         private bool CheckForNavMesh()
         {
             // SamplePosition is a very fast, non-allocating way to check if there's NavMesh data.
             // A huge distance (1,000,000) ensures it finds the NavMesh even if Vector3.zero is far away.
             return NavMesh.SamplePosition(Vector3.zero, out _, 1000000f, NavMesh.AllAreas);
         }
+
         public void OnEnable()
         {
             agent = target as GeminiLiveAgent;
@@ -96,7 +101,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
             // Voice Dropdown
             string[] voices = { "Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr" };
-            int selectedVoice = System.Array.IndexOf(voices, voiceNameProp.stringValue);
+            int selectedVoice = Array.IndexOf(voices, voiceNameProp.stringValue);
             if (selectedVoice == -1) selectedVoice = 0;
             selectedVoice = EditorGUILayout.Popup("Agent Voice", selectedVoice, voices);
             voiceNameProp.stringValue = voices[selectedVoice];
@@ -112,7 +117,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             string[] mics = Microphone.devices;
             if (mics.Length > 0)
             {
-                int micIndex = System.Array.IndexOf(mics, microphoneProp.stringValue);
+                int micIndex = Array.IndexOf(mics, microphoneProp.stringValue);
                 if (micIndex == -1) micIndex = 0;
                 micIndex = EditorGUILayout.Popup("Microphone Device", micIndex, mics);
                 microphoneProp.stringValue = mics[micIndex];
@@ -124,7 +129,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
 
             EditorGUILayout.PropertyField(inputGainProp, new GUIContent("Mic Gain"));
 
- 
+
             // --- VAD & Interruption Logic ---
             EditorGUILayout.Space(5);
             EditorGUILayout.PropertyField(muteMicWhileTalkingProp, new GUIContent("Prevent Echo (Mute Mic While Talking)"));
@@ -134,18 +139,18 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             {
                 EditorGUI.indentLevel++;
                 EditorGUILayout.PropertyField(voiceDetectionThresholdProp, new GUIContent("Normal Voice Detection Threshold"));
-                
+
                 if (muteMicWhileTalkingProp.boolValue)
                 {
                     EditorGUILayout.PropertyField(echoInterruptionThresholdProp, new GUIContent("Echo Interruption Threshold"));
                     EditorGUILayout.HelpBox("Because Prevent Echo is ON, interruption requires a louder voice to overcome the speaker's echo. Adjust the Echo Threshold below.", MessageType.Info);
-
                 }
-                
+
                 EditorGUILayout.PropertyField(useVocalFrequencyFilterProp, new GUIContent("Use Frequency Filter"));
                 EditorGUILayout.PropertyField(interruptionDebounceTimeProp, new GUIContent("Debounce Time (s)"));
                 EditorGUI.indentLevel--;
             }
+
             EditorGUILayout.Space();
 
             // 4. Vision
@@ -158,8 +163,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                     EditorGUI.indentLevel++;
                     EditorGUILayout.PropertyField(targetCameraTypeProp);
 
-                    if (targetCameraTypeProp != null && 
-                        targetCameraTypeProp.enumNames.Length > targetCameraTypeProp.enumValueIndex && 
+                    if (targetCameraTypeProp != null &&
+                        targetCameraTypeProp.enumNames.Length > targetCameraTypeProp.enumValueIndex &&
                         targetCameraTypeProp.enumNames[targetCameraTypeProp.enumValueIndex] == "WebCam")
                     {
                         WebCamDevice[] devices = WebCamTexture.devices;
@@ -168,7 +173,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                             string[] deviceNames = new string[devices.Length];
                             for (int i = 0; i < devices.Length; i++) deviceNames[i] = devices[i].name;
 
-                            int camIndex = System.Array.IndexOf(deviceNames, selectedWebCamNameProp.stringValue);
+                            int camIndex = Array.IndexOf(deviceNames, selectedWebCamNameProp.stringValue);
                             if (camIndex == -1) camIndex = 0;
 
                             camIndex = EditorGUILayout.Popup("Webcam Device", camIndex, deviceNames);
@@ -186,7 +191,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             EditorGUILayout.Space(10);
 
             // 5. Setup & Runtime Controls
-if (!Application.isPlaying)
+            if (!Application.isPlaying)
             {
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Setup Virtual Agent", GUILayout.Height(25))) agent.SetupVirtualAgent();
@@ -197,28 +202,28 @@ if (!Application.isPlaying)
             else
             {
                 EditorGUILayout.LabelField("Live Controls", EditorStyles.boldLabel);
-                
+
                 // Reconnect Button
                 GUI.backgroundColor = new Color(0.7f, 1f, 0.7f); // Light Green
                 if (GUILayout.Button("Reconnect Gemini", GUILayout.Height(30))) agent.Connect();
-                
+
                 GUILayout.Space(5);
                 bool currentVisionState = visionProp.boolValue;
                 string buttonText = currentVisionState ? "Stop Vision Stream" : "Start Vision Stream";
-                
+
                 // Red for Stop, Blue for Start
                 GUI.backgroundColor = currentVisionState ? new Color(1f, 0.7f, 0.7f) : new Color(0.7f, 0.8f, 1f);
-                
+
                 if (GUILayout.Button(buttonText, GUILayout.Height(30)))
                 {
                     // Toggle the state
                     bool newState = !currentVisionState;
                     agent.ToggleVisionStream(newState);
-                    
+
                     // Update the serialized property so the inspector checkbox syncs up
                     visionProp.boolValue = newState;
                 }
-                
+
                 // Reset GUI color
                 GUI.backgroundColor = Color.white;
             }

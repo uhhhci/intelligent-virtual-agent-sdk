@@ -28,7 +28,7 @@ namespace IVH.Core.ServiceConnector
 
             if (microphoneManager == null)
             {
-                microphoneManager = FindObjectOfType<MicrophoneManager>();
+                microphoneManager = FindFirstObjectByType<MicrophoneManager>();
             }
         }
 

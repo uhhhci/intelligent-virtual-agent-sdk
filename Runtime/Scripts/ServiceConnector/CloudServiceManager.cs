@@ -32,13 +32,13 @@ public class CloudServiceManager : MonoBehaviour
     {
         _serviceConnectorManager = ServiceConnectorManager.Instance.InitializeSingleton();
         // this is temporary solution. later on will port all services to the server. 
-        azureSpeech = FindObjectOfType<AzureSpeech>();
-        elevenLabTTS = FindObjectOfType<ElevenLabTTS>();
-        openAIWrapper = FindObjectOfType<OpenAIWrapper>();
-        googleCloudWrapper = FindObjectOfType<GoogleCloudAIWrapper>();
-        //localLLM = FindObjectOfType<LocalLLMWrapper>();
-        whisperSTT = FindObjectOfType<WhisperSTT>();
-        ollamaWrapper = FindObjectOfType<OllamaWrapper>();
+        azureSpeech = FindFirstObjectByType<AzureSpeech>();
+        elevenLabTTS = FindFirstObjectByType<ElevenLabTTS>();
+        openAIWrapper = FindFirstObjectByType<OpenAIWrapper>();
+        googleCloudWrapper = FindFirstObjectByType<GoogleCloudAIWrapper>();
+        //localLLM = FindFirstObjectByType<LocalLLMWrapper>();
+        whisperSTT = FindFirstObjectByType<WhisperSTT>();
+        ollamaWrapper = FindFirstObjectByType<OllamaWrapper>();
     }
     
     public async Task<string> STT(AgentLanguage language, VoiceRecognitionService STTService)

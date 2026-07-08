@@ -384,7 +384,7 @@
 //                 LookAtPlayer();
 //             }
 
-            
+
 //             if (GUILayout.Button("Look Idle", GUILayout.Height(50)))
 //             {
 //                 LookAwayIdly();
@@ -490,7 +490,7 @@
 //                 "If no actions needed, then return: 'message:your response ||| body action:none ||| face:none ||| gaze:none' " +
 //                 "Only choose one body language and one facial expression in one response" +
 //                 "Please be very short in your answer, in 1-2 sentences. " +
-                
+
 //                 $"Additional information about you: {additionalDescription}.";
 //         }
 
@@ -522,7 +522,7 @@
 //                 lookTargetController.LookAroundIdly();
 //             }
 //         }
-        
+
 //         private void checkAnimationState()
 //         {
 //             // detect what animation is being played now
@@ -573,3 +573,4 @@
 //         #endregion
 //     }
 // }
+

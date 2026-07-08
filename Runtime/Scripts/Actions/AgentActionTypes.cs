@@ -5,7 +5,8 @@ using System;
 using System.Reflection;
 using IVH.Core.ServiceConnector;
 
-namespace IVH.Core.Actions{
+namespace IVH.Core.Actions
+{
     // Define the base class for animations
     public abstract class AgentAction
     {
@@ -30,10 +31,12 @@ namespace IVH.Core.Actions{
             Debug.Log(this.GetType().Name);
             animator.SetTrigger(this.GetType().FullName.ToString());
         }
+
         public void StoppAnimationTrigger(Animator animator)
         {
             animator.ResetTrigger(this.GetType().Name);
         }
+
         // Helper function to construct a GPTToolItem
         public GPTToolItem ToGPTToolItem()
         {
@@ -410,14 +413,17 @@ namespace IVH.Core.Actions{
     #endregion
 #endif
     // avaliable by default
-    #region Rocketbox Animations 
+
+    #region Rocketbox Animations
+
     public class fcheer01 : AgentAction
     {
         public fcheer01() : base(
             typeof(fcheer01).Name,
             "An agent performs a cheer gesture, raising both hands in celebration.",
             new List<string> { "Rocketbox", "Female", "Positive" })
-        { }
+        {
+        }
     }
 
     public class flclaphands01 : AgentAction
@@ -426,7 +432,8 @@ namespace IVH.Core.Actions{
             typeof(flclaphands01).Name,
             "An agent claps their hands together, showing appreciation or celebration.",
             new List<string> { "Rocketbox", "Female", "Positive" })
-        { }
+        {
+        }
     }
 
     public class fdancingneutral : AgentAction
@@ -435,7 +442,8 @@ namespace IVH.Core.Actions{
             typeof(fdancingneutral).Name,
             "An agent performs a neutral dance, moving rhythmically without strong emotion.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fgesticlaugh : AgentAction
@@ -444,7 +452,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlaugh).Name,
             "An agent laughs while gesturing, expressing joy and amusement.",
             new List<string> { "Rocketbox", "Female", "Positive" })
-        { }
+        {
+        }
     }
 
     public class fgesticlistenaccept01 : AgentAction
@@ -453,7 +462,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlistenaccept01).Name,
             "An agent listens and accepts with a nod, showing attentiveness and agreement.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fgesticlistenangry01 : AgentAction
@@ -462,7 +472,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlistenangry01).Name,
             "An agent listens with an irritated expression, indicating frustration or disagreement.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     public class fgesticlistendeny01 : AgentAction
@@ -471,7 +482,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlistendeny01).Name,
             "An agent listens while shaking their head, indicating denial or disagreement.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     // public class fgesticlistenexcited01 : AgentAction
@@ -489,7 +501,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlistennervous01).Name,
             "An agent listens with a nervous expression, indicating anxiety or uncertainty.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     // public class fgesticlistenrelaxed01 : AgentAction
@@ -507,7 +520,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticlistensad01).Name,
             "An agent listens with a sad expression, indicating disappointment or sorrow.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     public class fgesticshrug01 : AgentAction
@@ -516,7 +530,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticshrug01).Name,
             "An agent shrugs their shoulders, indicating uncertainty or indifference.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fgestictalkangry01 : AgentAction
@@ -525,7 +540,8 @@ namespace IVH.Core.Actions{
             typeof(fgestictalkangry01).Name,
             "An agent talks while showing an angry expression, indicating frustration or confrontation.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     public class fgestictalkexcited01 : AgentAction
@@ -534,7 +550,8 @@ namespace IVH.Core.Actions{
             typeof(fgestictalkexcited01).Name,
             "An agent talks with excitement, showing enthusiasm and energy.",
             new List<string> { "Rocketbox", "Female", "Positive" })
-        { }
+        {
+        }
     }
 
     public class fgesticthoughtful01 : AgentAction
@@ -543,7 +560,8 @@ namespace IVH.Core.Actions{
             typeof(fgesticthoughtful01).Name,
             "An agent gestures thoughtfully, indicating deep consideration or reflection.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidleangry01 : AgentAction
@@ -552,7 +570,8 @@ namespace IVH.Core.Actions{
             typeof(fidleangry01).Name,
             "An agent stands idle with an angry expression, indicating frustration or irritation.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     public class fidlecough01 : AgentAction
@@ -561,7 +580,8 @@ namespace IVH.Core.Actions{
             typeof(fidlecough01).Name,
             "An agent coughs while standing idle, indicating a need to clear their throat or a sign of illness.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidlelookaround01 : AgentAction
@@ -570,7 +590,8 @@ namespace IVH.Core.Actions{
             typeof(fidlelookaround01).Name,
             "An agent looks around while standing idle, indicating curiosity or awareness of surroundings.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidlenervous01 : AgentAction
@@ -579,7 +600,8 @@ namespace IVH.Core.Actions{
             typeof(fidlenervous01).Name,
             "An agent stands idle with a nervous expression, indicating anxiety or uncertainty.",
             new List<string> { "Rocketbox", "Female", "Negative" })
-        { }
+        {
+        }
     }
 
     public class fidlerollhead01 : AgentAction
@@ -588,7 +610,8 @@ namespace IVH.Core.Actions{
             typeof(fidlerollhead01).Name,
             "An agent rolls their head while standing idle, indicating relaxation or boredom.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidlescrathhead01 : AgentAction
@@ -597,7 +620,8 @@ namespace IVH.Core.Actions{
             typeof(fidlescrathhead01).Name,
             "An agent scratches their head while standing idle, indicating confusion or contemplation.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidleyawn01 : AgentAction
@@ -606,7 +630,8 @@ namespace IVH.Core.Actions{
             typeof(fidleyawn01).Name,
             "An agent yawns while standing idle, indicating tiredness or boredom.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class fidle01 : AgentAction
@@ -615,7 +640,8 @@ namespace IVH.Core.Actions{
             typeof(fidle01).Name,
             "An agent stands idle in a neutral position, indicating calmness or waiting.",
             new List<string> { "Rocketbox", "Female", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class mcheer01 : AgentAction
@@ -624,7 +650,8 @@ namespace IVH.Core.Actions{
             typeof(mcheer01).Name,
             "An agent performs a cheer gesture, raising both hands in celebration.",
             new List<string> { "Rocketbox", "Male", "Positive" })
-        { }
+        {
+        }
     }
 
     public class mlclaphands01 : AgentAction
@@ -633,7 +660,8 @@ namespace IVH.Core.Actions{
             typeof(mlclaphands01).Name,
             "An agent claps their hands together, showing appreciation or celebration.",
             new List<string> { "Rocketbox", "Male", "Positive" })
-        { }
+        {
+        }
     }
 
     public class mdancingneutral : AgentAction
@@ -642,7 +670,8 @@ namespace IVH.Core.Actions{
             typeof(mdancingneutral).Name,
             "An agent performs a neutral dance, moving rhythmically without strong emotion.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class mgesticlistenaccept01 : AgentAction
@@ -651,7 +680,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticlistenaccept01).Name,
             "An agent listens and accepts with a nod, showing attentiveness and agreement.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class mgesticlistenangry01 : AgentAction
@@ -660,7 +690,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticlistenangry01).Name,
             "An agent listens with an irritated expression, indicating frustration or disagreement.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     public class mgesticlistendeny01 : AgentAction
@@ -669,7 +700,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticlistendeny01).Name,
             "An agent listens while shaking their head, indicating denial or disagreement.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     // public class mgesticlistenexcited01 : AgentAction
@@ -687,7 +719,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticlistennervous01).Name,
             "An agent listens with a nervous expression, indicating anxiety or uncertainty.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     // public class mgesticlistenrelaxed01 : AgentAction
@@ -705,7 +738,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticlistensad01).Name,
             "An agent listens with a sad expression, indicating disappointment or sorrow.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     public class mgesticshrug01 : AgentAction
@@ -714,7 +748,8 @@ namespace IVH.Core.Actions{
             typeof(mgesticshrug01).Name,
             "An agent shrugs their shoulders, indicating uncertainty or indifference.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class mgestictalkangry01 : AgentAction
@@ -723,7 +758,8 @@ namespace IVH.Core.Actions{
             typeof(mgestictalkangry01).Name,
             "An agent talks while showing an angry expression, indicating frustration or confrontation.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     public class mgestictalkexcited01 : AgentAction
@@ -732,7 +768,8 @@ namespace IVH.Core.Actions{
             typeof(mgestictalkexcited01).Name,
             "An agent talks with excitement, showing enthusiasm and energy.",
             new List<string> { "Rocketbox", "Male", "Positive" })
-        { }
+        {
+        }
     }
 
     public class midleangry01 : AgentAction
@@ -741,7 +778,8 @@ namespace IVH.Core.Actions{
             typeof(midleangry01).Name,
             "An agent stands idle with an angry expression, indicating frustration or irritation.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     public class midlecough01 : AgentAction
@@ -750,7 +788,8 @@ namespace IVH.Core.Actions{
             typeof(midlecough01).Name,
             "An agent coughs while standing idle, indicating a need to clear their throat or a sign of illness.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class midlelookaround01 : AgentAction
@@ -759,7 +798,8 @@ namespace IVH.Core.Actions{
             typeof(midlelookaround01).Name,
             "An agent looks around while standing idle, indicating curiosity or awareness of surroundings.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class midleshakearms01 : AgentAction
@@ -768,7 +808,8 @@ namespace IVH.Core.Actions{
             typeof(midleshakearms01).Name,
             "An agent stands idle shaking his arms.",
             new List<string> { "Rocketbox", "Male", "Positive" })
-        { }
+        {
+        }
     }
 
     public class midlewaiting01 : AgentAction
@@ -777,7 +818,8 @@ namespace IVH.Core.Actions{
             typeof(midlewaiting01).Name,
             "An agent stands idle wating for something.",
             new List<string> { "Rocketbox", "Male", "Positive" })
-        { }
+        {
+        }
     }
 
     public class midlenervous01 : AgentAction
@@ -786,7 +828,8 @@ namespace IVH.Core.Actions{
             typeof(midlenervous01).Name,
             "An agent stands idle with a nervous expression, indicating anxiety or uncertainty.",
             new List<string> { "Rocketbox", "Male", "Negative" })
-        { }
+        {
+        }
     }
 
     public class midlerollhead01 : AgentAction
@@ -795,7 +838,8 @@ namespace IVH.Core.Actions{
             typeof(midlerollhead01).Name,
             "An agent rolls their head while standing idle, indicating relaxation or boredom.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class midlescrathhead01 : AgentAction
@@ -804,7 +848,8 @@ namespace IVH.Core.Actions{
             typeof(midlescrathhead01).Name,
             "An agent scratches their head while standing idle, indicating confusion or contemplation.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class midleyawn01 : AgentAction
@@ -813,7 +858,8 @@ namespace IVH.Core.Actions{
             typeof(midleyawn01).Name,
             "An agent yawns while standing idle, indicating tiredness or boredom.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
 
     public class midleneutral01 : AgentAction
@@ -822,8 +868,10 @@ namespace IVH.Core.Actions{
             typeof(midleneutral01).Name,
             "An agent stands idle in a neutral position, indicating calmness or waiting.",
             new List<string> { "Rocketbox", "Male", "Neutral" })
-        { }
+        {
+        }
     }
+
     #endregion
 
     public static class AgentActions

@@ -9,15 +9,14 @@ using System.Threading.Tasks;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
-
     public class ConversationalAgent : AgentBase
     {
-
         protected Coroutine _interactionLoop;
         protected List<ChatMessage> _conversation; // can be GPTMessage or GeminiMessage
         protected private string llmQueryResponse = "";
 
         #region agent interaction
+
         public void StartSimpleChat()
         {
             // Start interaction loop as coroutine
@@ -67,6 +66,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                         {
                             Debug.Log("Trigger phrase not detected. Ignoring input.");
                         }
+
                         break;
 
                     case AIWakeupMode.TriggerOnce:
@@ -88,6 +88,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                                 Debug.Log("Trigger phrase not detected. Ignoring input.");
                             }
                         }
+
                         break;
                 }
 
@@ -113,9 +114,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                     }
                     else
                     {
-
                         QueryLLM_Text(userMessage);
                     }
+
                     yield return new WaitUntil(() => llmQueryResponse != "");
 
                     StructuredOutput res = StructuredResponseFormatter.ExtractMessageAndFunctionCall(llmQueryResponse);
@@ -124,10 +125,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                     {
                         PerformAction(res.actionFunction);
                     }
+
                     if (res.emotionFunction != null && res.emotionFunction != "none")
                     {
                         ExpressEmotion(res.emotionFunction);
                     }
+
                     if (res.gazeFunction != null && res.gazeFunction != "none")
                     {
                         if (res.gazeFunction == "LookAtUser")
@@ -137,19 +140,23 @@ namespace IVH.Core.IntelligentVirtualAgent
                                 FindPlayer();
                                 eyeGazeController.playerTarget = player;
                             }
+
                             eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.LookAtPlayer;
                         }
+
                         if (res.gazeFunction == "LookIdly")
                         {
                             eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.Idle;
                         }
                     }
+
                     if (res.textResponse != "" && res.textResponse != null)
                     {
                         Debug.Log("response text: " + res.textResponse);
                         AddToConversation(llmQueryResponse);
                         yield return cloudServiceManager.TTS(res.textResponse, agentAudioSource, TTSService);
                     }
+
                     res = null;
                     llmQueryResponse = "";
                 }
@@ -162,7 +169,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_7B_LLM ||
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_14B_LLM /*||
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_32B_LLM ||
-                foundationModel == FoundationModels.Ollama_Deepseek_R1_70B_LLM*/||
+                foundationModel == FoundationModels.Ollama_Deepseek_R1_70B_LLM*/ ||
                 foundationModel == FoundationModels.Ollama_OpenChat_7B_LLM ||
                 foundationModel == FoundationModels.Ollama_llava_13B_VLM ||
                 foundationModel == FoundationModels.Ollama_llava_7B_VLM ||
@@ -170,7 +177,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 foundationModel == FoundationModels.Ollama_Tinyllama_1B_LLM ||
                 foundationModel == FoundationModels.Unity_DeepSeekR1_LLM)
             {
-
                 _conversation.Add(new GPTTextMessage(GPTMessageRoles.ASSISTANT, responseText));
             }
             else if (foundationModel == FoundationModels.Unity_Gemini_VLM)
@@ -180,12 +186,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             else if (foundationModel == FoundationModels.UHAM_OpenAI_VLM)
             {
                 _conversation.Add(new GPTTextMessage(GPTMessageRoles.ASSISTANT, responseText));
-
             }
             else
             {
                 _conversation.Add(new GPTTextMessage(GPTMessageRoles.ASSISTANT, responseText));
-
             }
         }
 
@@ -195,7 +199,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_7B_LLM ||
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_14B_LLM /*||
                 foundationModel == FoundationModels.Ollama_Deepseek_R1_32B_LLM ||
-                foundationModel == FoundationModels.Ollama_Deepseek_R1_70B_LLM*/||
+                foundationModel == FoundationModels.Ollama_Deepseek_R1_70B_LLM*/ ||
                 foundationModel == FoundationModels.Ollama_OpenChat_7B_LLM ||
                 foundationModel == FoundationModels.Ollama_llava_13B_VLM ||
                 foundationModel == FoundationModels.Ollama_llava_7B_VLM ||
@@ -203,10 +207,9 @@ namespace IVH.Core.IntelligentVirtualAgent
                 foundationModel == FoundationModels.Ollama_Tinyllama_1B_LLM ||
                 foundationModel == FoundationModels.Unity_DeepSeekR1_LLM)
             {
-
                 _conversation = new List<ChatMessage>()
                 {
-                new GPTTextMessage(GPTMessageRoles.SYSTEM, systemPrompt)
+                    new GPTTextMessage(GPTMessageRoles.SYSTEM, systemPrompt)
                 };
             }
             else if (foundationModel == FoundationModels.Unity_Gemini_VLM)
@@ -234,20 +237,34 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         public async void QueryLLM_Text(string userMessage)
         {
-            try { llmQueryResponse = await cloudServiceManager.QueryLLM(userMessage, _conversation, foundationModel); ; }
-            catch (Exception ex) { Debug.LogError($"Error calling OpenAI: {ex.Message}"); }
+            try
+            {
+                llmQueryResponse = await cloudServiceManager.QueryLLM(userMessage, _conversation, foundationModel);
+                ;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error calling OpenAI: {ex.Message}");
+            }
         }
 
         public async void QueryVLM_Image(string userMessage, byte[] imageData)
         {
-
-            try { llmQueryResponse = await cloudServiceManager.QueryVLM(userMessage, _conversation, foundationModel, imageData); ; }
-            catch (Exception ex) { Debug.LogError($"Error calling OpenAI: {ex.Message}"); }
+            try
+            {
+                llmQueryResponse = await cloudServiceManager.QueryVLM(userMessage, _conversation, foundationModel, imageData);
+                ;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error calling OpenAI: {ex.Message}");
+            }
         }
 
         #endregion
 
         #region utils
+
         private void OnGUI()
         {
 #if UNITY_EDITOR || UNITY_STANDALONE_WIN
@@ -280,6 +297,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.Idle;
             }
+
             GUILayout.EndVertical();
 #endif
         }
@@ -289,9 +307,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             InitializeConversation();
             StartCoroutine(QuickSpeech(text));
         }
+
         private IEnumerator QuickSpeech(string text)
         {
-            QueryLLM_Text("please simply speak the following text while performing the approporiate facial expressions and actions: " +text);
+            QueryLLM_Text("please simply speak the following text while performing the approporiate facial expressions and actions: " + text);
 
             yield return new WaitUntil(() => llmQueryResponse != "");
 
@@ -307,11 +326,13 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 PerformAction(res.actionFunction);
             }
+
             if (res.emotionFunction != null && res.emotionFunction != "none")
             {
                 Debug.Log("expressing emotion");
                 ExpressEmotion(res.emotionFunction);
             }
+
             if (res.gazeFunction != null && res.gazeFunction != "none")
             {
                 if (res.gazeFunction == "LookAtUser")
@@ -321,13 +342,16 @@ namespace IVH.Core.IntelligentVirtualAgent
                         FindPlayer();
                         eyeGazeController.playerTarget = player;
                     }
+
                     eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.LookAtPlayer;
                 }
+
                 if (res.gazeFunction == "LookIdly")
                 {
                     eyeGazeController.currentGazeMode = Actions.EyeGazeController.GazeMode.Idle;
                 }
             }
+
             if (res.textResponse != "" && res.textResponse != null)
             {
                 Debug.Log("response text: " + res.textResponse);
