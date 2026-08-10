@@ -22,6 +22,12 @@ namespace IVH.Core.Actions
         public Transform playerTarget;
         // public Transform itemTarget;
 
+        // v2.8.0 — group-conversation gaze. Set by SpeakerTracker (or any caller) to a peer agent's
+        // head transform; activated by switching currentGazeMode to GazeMode.LookAtAgent. Falls back
+        // to Idle if null at update time.
+        [Tooltip("Target transform for LookAtAgent gaze mode. Typically set at runtime by SpeakerTracker to point at the current group speaker.")]
+        public Transform agentTarget;
+
         [Header("Gaze Settings")]
         [Range(0, 100)] public float maxEyeLookAngle = 45f; // Max angle for eye blendshape movement
         [Range(0, 100)] public float eyeBlendshapeStrength = 100f; // Max blendshape weight (0-100)
@@ -47,6 +53,8 @@ namespace IVH.Core.Actions
             Idle,
             LookAtPlayer,
             //LookAtItem
+            // v2.8.0 — used by group-conversation flows. Eyes/head follow agentTarget.
+            LookAtAgent
         }
 
         public GazeMode currentGazeMode = GazeMode.Idle;
@@ -135,6 +143,18 @@ namespace IVH.Core.Actions
                     {
                         Debug.LogWarning("EyeGazeController: Player Target is null for LookAtPlayer mode. Falling back to Idle.", this);
                         currentGazeMode = GazeMode.Idle; // Fallback
+                    }
+                    break;
+                case GazeMode.LookAtAgent:
+                    if (agentTarget != null)
+                    {
+                        targetGazeDirection = (agentTarget.position - GetEyeCenterPosition()).normalized;
+                    }
+                    else
+                    {
+                        // Silent fallback — agentTarget is expected to flicker between assignments
+                        // as the group's active speaker changes; warning each frame would spam.
+                        currentGazeMode = GazeMode.Idle;
                     }
                     break;
                     // case GazeMode.LookAtItem:
@@ -303,6 +323,16 @@ namespace IVH.Core.Actions
         {
             currentGazeMode = GazeMode.LookAtPlayer;
             Debug.Log("EyeGazeController: Switched to Look At Player Gaze Mode.", this);
+        }
+
+        /// <summary>
+        /// v2.8.0 — switch to <see cref="GazeMode.LookAtAgent"/> targeting the given transform.
+        /// Used by group-conversation flows so listening agents track the active speaker.
+        /// </summary>
+        public void SetGazeModeLookAtAgent(Transform target)
+        {
+            agentTarget = target;
+            currentGazeMode = GazeMode.LookAtAgent;
         }
 
         private int GetFirstValidBlendshapeIndex(SkinnedMeshRenderer renderer, List<string> possibleNames)

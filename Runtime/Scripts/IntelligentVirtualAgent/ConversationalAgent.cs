@@ -13,6 +13,10 @@ namespace IVH.Core.IntelligentVirtualAgent
     public class ConversationalAgent : AgentBase
     {
 
+        [Header("Runtime HUD")]
+        [Tooltip("If enabled, draws the in-game Agent Controls panel (Start/Stop Simple Chat, Look At Player, Look Idle) via OnGUI on Editor/Standalone Windows. Disable to hide.")]
+        public bool ShowGUI = true;
+
         protected Coroutine _interactionLoop;
         protected List<ChatMessage> _conversation; // can be GPTMessage or GeminiMessage
         protected private string llmQueryResponse = "";
@@ -93,6 +97,16 @@ namespace IVH.Core.IntelligentVirtualAgent
 
                 if (shouldProcess && !String.IsNullOrEmpty(userMessage))
                 {
+                    // Awaitable retrieval of any IContextProvider prefix (document grounding,
+                    // long-term memory). Returns empty when no providers are attached, in which
+                    // case the message passes through unchanged and behavior matches v3.0.
+                    Task<string> prefixTask = BuildContextPrefixAsync(userMessage);
+                    yield return new WaitUntil(() => prefixTask.IsCompleted);
+                    string contextPrefix = prefixTask.IsFaulted ? "" : (prefixTask.Result ?? "");
+                    string augmentedUserMessage = string.IsNullOrEmpty(contextPrefix)
+                        ? userMessage
+                        : contextPrefix + "\nUser question: " + userMessage;
+
                     if (vision == true)
                     {
                         if (imageTriggerMode == ImageTriggerMode.Auto || (imageTriggerMode == ImageTriggerMode.TriggerPhrase && userMessage == triggerPhrase))
@@ -101,20 +115,20 @@ namespace IVH.Core.IntelligentVirtualAgent
                             {
                                 egoImageData = null;
                                 CaptureEgocentricImage(ImageHelper.GetResolution(resolution));
-                                QueryVLM_Image(userMessage, egoImageData);
+                                QueryVLM_Image(augmentedUserMessage, egoImageData);
                             }
                             else if (targetCameraType == TargetCameraType.WebCam)
                             {
                                 webCamImageData = null;
                                 yield return CaptureWebcamImage();
-                                QueryVLM_Image(userMessage, webCamImageData);
+                                QueryVLM_Image(augmentedUserMessage, webCamImageData);
                             }
                         }
                     }
                     else
                     {
 
-                        QueryLLM_Text(userMessage);
+                        QueryLLM_Text(augmentedUserMessage);
                     }
                     yield return new WaitUntil(() => llmQueryResponse != "");
 
@@ -251,6 +265,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         private void OnGUI()
         {
 #if UNITY_EDITOR || UNITY_STANDALONE_WIN
+            if (!ShowGUI)
+            {
+                return;
+            }
             GUILayout.Space(150); // Add some spacing at the top
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
 

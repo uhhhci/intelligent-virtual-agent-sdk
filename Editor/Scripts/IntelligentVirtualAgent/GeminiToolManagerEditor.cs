@@ -66,8 +66,6 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                     }
                 }
 
-                // REMOVED THE REDUNDANT PropertyField FROM HERE
-
                 if (GUILayout.Button("Remove Tool", GUILayout.Width(100)))
                 {
                     toolsProp.DeleteArrayElementAtIndex(i);

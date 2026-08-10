@@ -5510,6 +5510,10 @@ MonoBehaviour:
   selectedModel: 0
   affectiveAnalysis: 0
   contextWindowSliding: 1
+  enableTranscription: 0
+  autoReconnect: 0
+  maxReconnectAttempts: 5
+  reconnectBaseDelaySeconds: 1
   verboseLogging: 1
 --- !u!114 &1236978214
 MonoBehaviour:
@@ -5523,6 +5527,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9c3492fc4fadf11469b9370682746485, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  preset: {fileID: 0}
   agentPrefab: {fileID: 919132149155446097, guid: aad3d872a002790448ccce1a63a73834, type: 3}
   cloudServiceManagerPrefab: {fileID: 0}
   emotionHandlerType: 0
@@ -5554,6 +5559,8 @@ MonoBehaviour:
   faceAnimator: {fileID: 907591680}
   emotionHandler: {fileID: 907591679}
   eyeGazeController: {fileID: 907591678}
+  enableLocomotion: 0
+  agentLocomotion: {fileID: 0}
   wakeupMode: 0
   triggerPhrases:
   - hey ai
@@ -5570,6 +5577,9 @@ MonoBehaviour:
   autoConnectOnStart: 1
   microphoneDeviceName: Microphone Array (Realtek(R) Audio)
   inputGain: 2
+  enableVocalInterruption: 1
+  muteMicWhileTalking: 1
+  echoInterruptionThreshold: 0.15
   voiceDetectionThreshold: 0.024
   useVocalFrequencyFilter: 1
   interruptionDebounceTime: 0.5

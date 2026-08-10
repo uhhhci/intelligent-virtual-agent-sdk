@@ -1,3 +1,4 @@
+#if IVA_HAS_WHISPER
 using System;
 using System.Collections;
 using System.Text.RegularExpressions;
@@ -6,6 +7,11 @@ using Whisper;
 
 namespace IVH.Core.ServiceConnector
 {
+    /// <summary>
+    /// Local speech-to-text backed by the optional <c>com.whisper.unity</c> package. The whole class is
+    /// only compiled when the Whisper package is present (<c>IVA_HAS_WHISPER</c> define from the asmdef's
+    /// <c>versionDefines</c>); install it via the Setup Wizard's Dependencies tab to opt in.
+    /// </summary>
     public class WhisperSTT : MonoBehaviour
     {
         public WhisperManager whisperManager;
@@ -102,3 +108,4 @@ namespace IVH.Core.ServiceConnector
         }
     }
 }
+#endif

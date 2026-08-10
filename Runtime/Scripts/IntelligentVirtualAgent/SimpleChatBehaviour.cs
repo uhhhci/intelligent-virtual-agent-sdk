@@ -5,15 +5,12 @@ using UnityEngine;
 
 public class SimpleChatBehaviour : MonoBehaviour
 {
-    // Service Connector
     private ServiceConnectorManager _serviceConnectorManager;
-    
-    // Agent
+
     public AudioSource agentAudioSource;
 
     private LanguageModelConnection.GPT_Models _model = LanguageModelConnection.GPT_Models.Chat_GPT_35;
 
-    // Behaviour context
     public string contextMessage = "A discussion about Soccer.";
     public string userMessage = "Hello, I am Erik!";
     public string agentMessage= "Hi Erik, now that you are here, let's discuss Soccer!";
@@ -22,13 +19,9 @@ public class SimpleChatBehaviour : MonoBehaviour
     private List<GPTMessage> _conversation;
 
     private Coroutine _interactionLoop;
-    
-    /// <summary>
-    /// Called when an script instance is being loaded.
-    /// </summary>
+
     void Awake()
     {
-        // Initialize service connector manager safely and get component
         _serviceConnectorManager = ServiceConnectorManager.Instance.InitializeSingleton();
     }
 
@@ -48,17 +41,14 @@ public class SimpleChatBehaviour : MonoBehaviour
     public void StartSimpleChat()
     {
         InitializeConversation();
-        
-        // Start interaction loop as coroutine
         _interactionLoop = StartCoroutine(InteractionLoop());
     }
-    
+
     /// <summary>
     /// Stops the simple chat behaviour of the agent.
     /// </summary>
     public void StopSimpleChat()
     {
-        // Stop interaction loop
         if (_interactionLoop != null)
         {
             StopCoroutine(_interactionLoop);
@@ -116,7 +106,6 @@ public class SimpleChatBehaviour : MonoBehaviour
                 Debug.Log("Chat GPT finished with model: " + _model);
             }
 
-            // Add the agent's response to the conversation
             _conversation.Add(new GPTTextMessage(GPTMessageRoles.ASSISTANT, result.content));
 
             // 3. Generate TTS
@@ -127,7 +116,6 @@ public class SimpleChatBehaviour : MonoBehaviour
                 agentAudioSource.Play();
             });
 
-            // Check the audio clip length and wait for it to finish playing
             yield return new WaitForSeconds(agentAudioSource.clip.length);
         }
     }

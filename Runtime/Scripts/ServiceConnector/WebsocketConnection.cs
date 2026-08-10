@@ -262,25 +262,10 @@ namespace IVH.Core.ServiceConnector
             return new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(str));
         }
 
-        // Update is called once per frame
         void Update()
         {
             if (clientWebSocket != null)
                 state = clientWebSocket.State.ToString();
-        }
-
-        private void OnGUI()
-        {
-            return; // TODO DISABLED VISUAL STT OUTPUT
-            // if (lastTranscription != null && lastTranscription.alternatives.Count > 0)
-            // {
-            //     if (lastTranscription.isFinal)
-            //         GUI.color = Color.green;
-            //     else
-            //         GUI.color = Color.red;
-            //
-            //     GUI.Label(new Rect(10, 10, 500, 100), lastTranscription.alternatives[0].transcript);
-            // }
         }
 
         public class AudioConfiguration

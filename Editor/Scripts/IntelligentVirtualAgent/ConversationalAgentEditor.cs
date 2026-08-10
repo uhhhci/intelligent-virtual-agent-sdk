@@ -18,10 +18,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         private SerializedProperty imageTriggerModeProp;
         private SerializedProperty resolutionProp;
         private SerializedProperty rawImageProp;
+        private SerializedProperty simpleTextProp;
 
         public void OnEnable()
         {
-            // Get a reference to the target script
             agent = target as ConversationalAgent;
             cloudServiceManager = agent.cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
 
@@ -30,38 +30,35 @@ namespace IVH.Core.IntelligentVirtualAgent
             imageTriggerModeProp = serializedObject.FindProperty("imageTriggerMode");
             resolutionProp = serializedObject.FindProperty("resolution");
             rawImageProp = serializedObject.FindProperty("rawImage");
+            simpleTextProp = serializedObject.FindProperty("SimpleText");
         }
 
         public override void OnInspectorGUI()
         {
-            // Draw the inspector
             serializedObject.Update();
             DrawPropertiesExcluding(serializedObject, "TTSService", "STTService", "foundationModel");
 
 
-            // Add a space in the inspector
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Cloud Service Settings", EditorStyles.boldLabel);
 
-            // Combine UHAM services and dynamically detected services
             List<string> availableSTTServices = new List<string>();
             List<string> availableTTServices = new List<string>();
             List<string> availableLMMServices = new List<string>();
 
-            // Add UHAM services
             availableSTTServices.AddRange(Enum.GetNames(typeof(VoiceRecognitionService)).Where(n => n.StartsWith("UHAM")));
             availableTTServices.AddRange(Enum.GetNames(typeof(VoiceService)).Where(n => n.StartsWith("UHAM")));
             availableLMMServices.AddRange(Enum.GetNames(typeof(FoundationModels)).Where(n => n.StartsWith("UHAM")));
 
-            // Check for specific components or configurations and add to the list
             if (cloudServiceManager != null)
             {
-                // Example: Check for locally running services in children
+#if IVA_HAS_WHISPER
                 if (cloudServiceManager.GetComponentsInChildren<WhisperSTT>().Length > 0)
                 {
                     availableSTTServices.Add("Local_Whisper");
                 }
+#endif
                 if (cloudServiceManager.GetComponentsInChildren<AzureSpeech>().Length > 0)
                 {
                     availableTTServices.Add("Unity_Azure");
@@ -70,10 +67,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 {
                     availableTTServices.Add("Unity_ElevenLab");
                 }
-                // if (cloudServiceManager.GetComponentsInChildren<LocalLLMWrapper>().Length > 0)
-                // {
-                //     availableLMMServices.Add("Local_Model_LLM");
-                // }
                 if (cloudServiceManager.GetComponentsInChildren<GoogleCloudAIWrapper>().Length > 0)
                 {
                     availableLMMServices.Add("Unity_Gemini_VLM");
@@ -84,11 +77,10 @@ namespace IVH.Core.IntelligentVirtualAgent
                 }
             }
 
-            // Display the combined list of available options
             if (availableSTTServices.Count > 0)
             {
                 int selectedSTTIndex = availableSTTServices.IndexOf(agent.STTService.ToString());
-                if (selectedSTTIndex == -1) selectedSTTIndex = 0; // Default to the first option if the current value is not in the list
+                if (selectedSTTIndex == -1) selectedSTTIndex = 0;
                 selectedSTTIndex = EditorGUILayout.Popup("STT Service", selectedSTTIndex, availableSTTServices.ToArray());
                 agent.STTService = (VoiceRecognitionService)Enum.Parse(typeof(VoiceRecognitionService), availableSTTServices[selectedSTTIndex]);
             }
@@ -100,7 +92,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (availableTTServices.Count > 0)
             {
                 int selectedTTSIndex = availableTTServices.IndexOf(agent.TTSService.ToString());
-                if (selectedTTSIndex == -1) selectedTTSIndex = 0; // Default to the first option if the current value is not in the list
+                if (selectedTTSIndex == -1) selectedTTSIndex = 0;
                 selectedTTSIndex = EditorGUILayout.Popup("TTS Service", selectedTTSIndex, availableTTServices.ToArray());
                 agent.TTSService = (VoiceService)Enum.Parse(typeof(VoiceService), availableTTServices[selectedTTSIndex]);
             }
@@ -112,7 +104,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (availableLMMServices.Count > 0)
             {
                 int selectedLMMIndex = availableLMMServices.IndexOf(agent.foundationModel.ToString());
-                if (selectedLMMIndex == -1) selectedLMMIndex = 0; // Default to the first option if the current value is not in the list
+                if (selectedLMMIndex == -1) selectedLMMIndex = 0;
                 selectedLMMIndex = EditorGUILayout.Popup("Foundation Model", selectedLMMIndex, availableLMMServices.ToArray());
                 agent.foundationModel = (FoundationModels)Enum.Parse(typeof(FoundationModels), availableLMMServices[selectedLMMIndex]);
             }
@@ -121,7 +113,6 @@ namespace IVH.Core.IntelligentVirtualAgent
                 EditorGUILayout.LabelField("No available Foundation Models found.");
             }
 
-            // Add a space in the inspector
             EditorGUILayout.Space();
 
             if (cloudServiceManager != null)
@@ -140,12 +131,17 @@ namespace IVH.Core.IntelligentVirtualAgent
                 }
             }
 
-            // Add a space in the inspector
+            EditorGUILayout.Space();
+
+            if (simpleTextProp != null)
+            {
+                EditorGUILayout.PropertyField(simpleTextProp, new GUIContent("Simple Text"));
+            }
+
             EditorGUILayout.Space();
 
             if (!Application.isPlaying)
             {
-                // Create a button that says "Setup Agent"
                 if (GUILayout.Button("Setup Agent"))
                 {
                     agent.SetupVirtualAgent();
@@ -169,13 +165,12 @@ namespace IVH.Core.IntelligentVirtualAgent
                 }
                 if (GUILayout.Button("Instant Actor"))
                 {
-                    
+
                     agent.StartQuickSpeech(agent.SimpleText);
                 }
 
             }
 
-            // Apply changes to the serialized object
             serializedObject.ApplyModifiedProperties();
         }
     }

@@ -82,8 +82,6 @@ public enum VoiceService
 public enum VoiceRecognitionService
 {
     UHAM_GoogleCloud,
-    //Unity_GoogleCloud,
-    //Unity_Azure, // TODO
     Local_Whisper
 }
 
@@ -161,20 +159,19 @@ public static class LanguageHelper
 
     public static string GetLanguageCode(AgentLanguage language)
     {
-        return LanguageCodes.TryGetValue(language, out var code) ? code : "en-US"; // default fallback
+        return LanguageCodes.TryGetValue(language, out var code) ? code : "en-US";
     }
 }
 public enum AgentLanguage
 {
     english,
     german,
-   // chinese, Google cloud SpeechClient V1 has bug for chinese language detection 
+    // chinese omitted — Google Cloud SpeechClient V1 mis-detects Chinese.
     spanish,
     japanese,
     korean,
     french
 }
-// characterize agent's personality
 public enum MBTI
 {
     ISTJ, ISFJ, INFJ, INTJ,
@@ -182,7 +179,6 @@ public enum MBTI
     ESTP, ESFP, ENFP, ENTP,
     ESTJ, ESFJ, ENFJ, ENTJ
 }
-// TODO for student co-worker, correctly label the facial expression animations with these emotional states
 public enum EmotionalState
 {
     // Primary Emotions

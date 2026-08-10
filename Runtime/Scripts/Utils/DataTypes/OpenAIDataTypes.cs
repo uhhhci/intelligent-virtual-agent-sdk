@@ -298,9 +298,9 @@ namespace IVH.Core.ServiceConnector
 
     public enum ImageResolution
     {
-        HD720, // 720*1080
-        HD1080, // 1080*1920
-        VGA //640*480
+        HD720,
+        HD1080,
+        VGA
     }
 
     public class ImageHelper
@@ -310,11 +310,11 @@ namespace IVH.Core.ServiceConnector
             switch (resolution)
             {
                 case ImageResolution.HD720:
-                    return new Vector2Int(1280, 720); // Note: Adjusted to standard HD 720p dimensions (width x height).
+                    return new Vector2Int(1280, 720);
                 case ImageResolution.HD1080:
-                    return new Vector2Int(1920, 1080); // Standard HD 1080p dimensions.
+                    return new Vector2Int(1920, 1080);
                 case ImageResolution.VGA:
-                    return new Vector2Int(640, 480); // Standard VGA dimensions.
+                    return new Vector2Int(640, 480);
                 default:
                     throw new System.ArgumentOutOfRangeException(nameof(resolution), "Unsupported resolution type.");
             }

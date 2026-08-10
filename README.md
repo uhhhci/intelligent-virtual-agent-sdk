@@ -1,10 +1,21 @@
-# Intelligent Virtual Human SDK (v2.0.0)
+# Intelligent Virtual Human SDK (v3.0.0)
+
+> **v3.0.0 is the current release.** The headline feature is **document grounding** — an agent can now
+> answer from a corpus you supply instead of from whatever the model absorbed in pre-training, via
+> three strategies covering everything from a single briefing document to a corpus larger than the
+> context window. See [Grounding an agent in documents](#grounding-an-agent-in-documents). This release
+> also reworks the developer-facing surface: an in-game HUD, a setup wizard, structured logging, and a
+> typed exception hierarchy.
+>
+> To pin this exact release, append the tag to the git URL:
+> `https://git.informatik.uni-hamburg.de/presence/public/iva-sdk-core-public.git#v3.0.0`
+
+> 🤖 **v3.0.0 was co-piloted with [Claude Code](https://www.anthropic.com/claude) via a human-in-the-loop coding and agentic engineering workflow.** Please be aware that some code was partially authored by Claude Code under maintainer's review and supervision.
 
 
 <img src="./Documentations~/images/Teaser.png" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
-The package contains the Intelligent Virtual Human SDK developed by the [human computer interaction group](https://www.inf.uni-hamburg.de/en/inst/ab/hci.html) at Hamburg University. 
 
 <span style="color:red"> ***Please note that the usage of the SDK requires ethical & responsible use. Details can be found [here](./LICENSE.md).***</span>
 
@@ -17,10 +28,19 @@ Oliva, R., Wiesing, M., Gállego, J., Inami, M., Interrante, V., Lecuyer, A., Mc
 
 ##  Demo
 
+<img src="./Documentations~/images/v3.0Demo.png" alt="v3.0 demo — realtime agent with the in-game HUD"
+    style="float: center; margin-right: 10px; " />
+
+A v3.0 session at runtime. The in-game HUD adds a live **transcription panel** (top left) and a
+**settings panel** (bottom left) that exposes microphone and camera selection, the agent vision stream
+and its frequency, and vocal-interruption handling — all switchable without leaving Play mode.
+
+
+Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual humans. Due to the license restriction, we only include an example character and animations from Rocketbox characters. 
+
 <img src="./Documentations~/images/interoperability.gif" alt="teaser"
     style="float: center; margin-right: 10px; " /> 
 
-Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual humans. Due to the license restriction, we only include an example character and animations from Rocketbox characters. 
 
 
 ## Table of content 
@@ -28,6 +48,8 @@ Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual h
 - [Dependencies](#dependencies)
 - [Main Features](#main-features)
 - [Quick Start](#quick-start)
+- [Grounding an agent in documents](#grounding-an-agent-in-documents)
+- [Sample scenes](#sample-scenes)
 - [Documentation](#documentation)
 - [DIDIMO Character License Notice](#didimo-character-license-notice)
 - [Rocketbox Character License Notice](#rocketbox-characters-license-notice)
@@ -38,7 +60,7 @@ Our toolkit is compatible with CC4, Microsoft-rocketbox, and DIDIMO 3D virtual h
 - [Acknowledgement](#acknowledgement)
 
 ### Requirements
-* Unity 2022.3 LTS and above, Universal Render Pipeline (URP)
+* Unity 2022.3 LTS and above, Universal Render Pipeline (URP). Support Unity 6.
 *  (``intelligent-virtual-agent-examples`` [unity example project](https://github.com/uhhhci/intelligent-virtual-agent-sdk-examples)) - not needed to run the SDK but provides a good starting point if you want to explore the SDK.
 
 ### Dependencies
@@ -64,6 +86,22 @@ The image above shows the interaction loop of a conversational virtual agent.
     - <b>structure output from LLM/VLM</b>, containing selected action, facial expression, and text response.
     - <b>realistic IVA behavior</b> combining the multimodal output, including gaze, action, and facial expressions. 
 
+
+#### New in v3.0
+
+* **Document grounding.** Ground an agent in your own Markdown corpus via three strategies —
+  whole-document prompt injection, real-time per-turn RAG with the Gemini embedding model, or
+  one-shot retrieval at connect. See [Grounding an agent in documents](#grounding-an-agent-in-documents).
+* **In-game HUD for `GeminiLiveAgent`.** Scaffolded transcription and settings panels covering
+  reconnect, microphone, camera source and preview, vision toggle, stream frequency, interruption and
+  echo control. Draggable and resizable at runtime.
+* **Setup tooling.** A unified `IVA SDK` menu with a Setup Wizard for dependencies, credentials, and
+  sanity checks, plus first-launch bootstrapping of the git-URL packages UPM can't resolve
+  transitively.
+* **Structured logging and typed exceptions.** `IVALogger` with severity and category filtering, and
+  an `IVH.Core.Exceptions` hierarchy so failures are catchable by type instead of by string-matching
+  the Console.
+* **Long-term memory, session recording, and agent presets** — all opt-in.
 
 If you want to have more modularized cloud services (e.g. using different STT, LLM, TTS models), checkout [documentation for v1.0.0](./READMEv1.0.0.md)
 
@@ -119,13 +157,37 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
 
 ## Connect to Gemini Live Cloud Service
 
-The current implementation supports 3 different live model. Two free-tier models from google AI studio and one paid model from Google's Vertex AI. 
+The current implementation supports two live models: one free-tier model from Google AI Studio and one paid model from Google's Vertex AI. 
 
 | Model Variant | Source | Tier | Latency | Model ID / Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Gemini Live 2.5 Flash** | Vertex AI | Paid | Low | [`gemini-live-2.5-flash-native-audio`](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api) |
 | **Gemini Live 2.5 Flash** | Google AI | Free | High | [`gemini-2.5-flash-native-audio-preview-12-2025`](https://ai.google.dev/gemini-api/docs/live?example=mic-stream) |
-| **Gemini 2.0 Flash Exp** | Google AI | Free | Low | `gemini-2.0-flash-exp`<br>*(To be deprecated/terminated in March 2026)* |
+
+Both backends serve the same model family and both support function calling, vision, and document
+grounding. They differ in how consistently they deliver it:
+
+* **Google AI Studio** runs on shared, preview-grade capacity with per-minute request and token
+  ceilings. A realtime session streams audio continuously, so it consumes tokens every second it is
+  open. As you approach the ceiling the service **throttles rather than erroring** — replies get slow
+  and variable instead of failing outright. Check your live quota on the
+  [AI Studio rate-limit dashboard](https://aistudio.google.com/rate-limit). Best for a first run and
+  for zero-cost prototyping.
+* **Vertex AI** runs on a regional endpoint (`us-central1`) with provisioned capacity, and is billed
+  per session. Turn latency is consistently low. Use it for demos, user studies, and anything where
+  responsiveness is being measured.
+
+This gap widens when the agent is grounded in documents, because grounding enlarges the prompt that
+continuous audio then builds on. Grounding *quality* is identical on both — prototype on AI Studio,
+switch to Vertex when responsiveness starts to matter. See
+[`Documentations~/howToGroundAgentInDocuments.md`](Documentations~/howToGroundAgentInDocuments.md#choosing-a-backend-ai-studio-vs-vertex-ai).
+
+Two `Gemini Realtime Wrapper` fields shape latency directly, on both backends:
+
+| Field | Default | Effect |
+| :--- | :--- | :--- |
+| `Disable Thinking` | on | Sends `thinking_budget = 0`. Gemini 2.5 runs dynamic thinking by default, which pauses to reason before every spoken reply — the largest single source of turn latency in a voice session. Untick if you want the reasoning. |
+| `Sliding Window Target Tokens` | 12800 | Where `Context Window Sliding` starts trimming the oldest context. Each trim is a server-side pause. Raise it if long sessions develop periodic stalls; native-audio sessions cap at 128k tokens. |
 
 ### Option 1: Google AI Studio (Quick Start)
 *Recommended for individual developers and prototyping. Please check [Google AI Studio Documentations](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio) for further details.*
@@ -183,6 +245,82 @@ Your `.aiapi` folder should contain one of the following files depending on your
 * `auth.json` (for AI Studio)
 * `service_account.json` (for Vertex AI)
 
+## Grounding an agent in documents
+
+By default an agent answers from whatever the LLM saw during pre-training plus its persona prompt.
+When the agent has to be accurate about *your* material — a study protocol, a technical report, a
+museum collection, a station handbook — you ground it in documents you supply.
+
+v3.0 ships **three grounding strategies**. They differ in one dimension: how much of your corpus is
+in the prompt at any moment.
+
+| Strategy | Component | Bake required | Corpus limit | Per-turn cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **Whole document via prompt** | `FullDocumentContextProvider` | No | Must fit context (~200 KB default cap) | None |
+| **Real-time RAG (per turn)** | `KnowledgeRetrievalTool` + `DocumentGroundingComponent` | Yes | Effectively unbounded | 1 embedding call + possible extra model round-trip |
+| **One-shot RAG at connect** | `DocumentGroundingComponent` alone | Yes | Unbounded | None for realtime agents; per turn for `ConversationalAgent` |
+
+**Rule of thumb: start with whole-document injection.** It has no build step, no ranking that can
+miss the answer, and zero latency. Move to retrieval when the corpus stops fitting — not before.
+
+Markdown (`.md`, `.markdown`) is the only supported source format in v3.0. PDF and `.docx` will plug
+in behind the existing `IDocumentReader` interface without an architectural change.
+
+> 📖 **Full walkthrough** — key setup, creating and baking a `KnowledgeBase`, wiring the agent,
+> tuning, and troubleshooting, with annotated Inspector screenshots of every step:
+> **[`Documentations~/howToGroundAgentInDocuments.md`](./Documentations~/howToGroundAgentInDocuments.md)**
+
+### New in v3.0 — the grounding sample scenes
+
+Import from **Package Manager → Intelligent Virtual Human SDK Core → Samples**. Each sample ships its
+own README with backend guidance, recommended settings, and the full list of questions to try.
+
+#### Knowledge Grounding — Long Document via Prompt
+
+`CuratorLongDocumentAgent.unity` puts you in front of **Aurelia Vance**, curator of the invented
+Hollowmere Museum of Invented Instruments. Her ~9 KB dossier is injected *whole* at session start by a
+single `FullDocumentContextProvider` — there is no `KnowledgeBase` asset, no baking, and no retrieval
+step, so every fact is always in context and there is zero per-turn latency.
+
+- **Setup:** set an API key, open the scene, press Play. That is all.
+- **Try asking:** *"What's the strangest thing in your museum?"* · *"Tell me about Desmond."* ·
+  *"What's a good investment in the instrument market?"* — the last one is explicitly out of scope in
+  the dossier, so a well-behaved run declines instead of inventing.
+
+This scene also demonstrates why the default **Instruction Template** matters: it frames the corpus as
+the agent's *own memory*, which is why the agent *becomes* Aurelia rather than describing her.
+
+#### Knowledge Grounding — RAG Retrieval (Gemini Embeddings)
+
+`MeridianStationRAGAgent.unity` is the operations assistant of an invented deep-ocean research
+station, grounded in two markdown documents through a **baked** `KnowledgeBase`. On turns that need
+it, the model calls a `search_knowledge` tool with the user's real question; that query is embedded
+with `gemini-embedding-001` and only the closest chunks enter the prompt. This is the mode that
+scales past the context window.
+
+- **Setup:** select `MeridianStationKnowledgeBase.asset`, click **Bake Now** (20–40 s for this
+  corpus), then open the scene and press Play.
+- **Try asking:** *"How long can the station run without the umbilical?"* · *"Who authorises a
+  dive?"* · *"What's the weather like in Hamburg?"* — the last is outside the corpus and should be
+  declined. If it gets answered confidently, raise `Min Similarity`.
+
+The detail worth copying from this scene is **`Inject At Session Start` unticked** on the
+`DocumentGroundingComponent`: it makes the component a pure retrieval backend for the tool, instead of
+*also* pushing a generic one-shot prefix at connect that was retrieved for no real question.
+
+
+
+### Speakers vs. headphones
+
+Both knowledge-grounding scenes ship with **vocal interruption off** and **echo prevention on**,
+because that is the only combination that behaves sanely on laptop speakers. Interruption works by
+listening for your voice *over* the agent, so on speakers the agent's own output crosses the
+threshold and it interrupts itself mid-sentence, over and over.
+
+**On headphones, flip both:** turn `Enable Vocal Interruption` on and `Mute Mic While Talking` off.
+The conversation becomes far more natural — you can cut the agent off the way you would a person.
+The two settings are mutually exclusive by design; muting the mic while the agent talks leaves nothing to interrupt with. 
+
 ## Documentation
 
 - For the full Documentation, visit the [Wiki](https://github.com/uhhhci/intelligent-virtual-agent-sdk/wiki).
@@ -220,7 +358,7 @@ Mail: ke.li@uni-hamburg.de, sebastian.rings@uni-hamburg.de, julia.hertel@uni-ham
 This toolkit is released for academic and research purposes only, free of charge. For commercial use, a seperate license must be obtained.  Please find detailed licensing information [here](./LICENSE.md)
 
 ### Citation
-If this work helps your research, please cite the following papers:
+If this work helps your research, please refer/cite the following publications:
 
 ```
 

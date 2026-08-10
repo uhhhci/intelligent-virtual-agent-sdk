@@ -5,6 +5,7 @@ using System;
 using UnityEditor;
 using IVH.Core.ServiceConnector;
 using IVH.Core.IntelligentVirtualAgent;
+using IVH.Core.Utils.Logging;
 
 namespace IVH.Core.Actions
 {
@@ -13,7 +14,12 @@ namespace IVH.Core.Actions
         public List<AgentFacialAnimation> avaliableAnimations = AgentFacialAnimations.GetAvailableActions();
         public List<DidimoAgentFacialAnimation> avaliableDidimoActions = DidimoAgentFacialAnimations.GetAvailableActions();
 
+        [Tooltip("Minimum seconds between different facial expression triggers. 0 = no gate (v2.6.0 behavior).")]
+        [Range(0f, 5f)] public float minHoldSeconds = 0.8f;
+
         private Animator animator;
+        private string _lastActionName = "";
+        private float _lastTriggerTime = -999f;
         // Initialize with the available actions
 
 
@@ -40,6 +46,15 @@ namespace IVH.Core.Actions
         // Trigger an action by its name
         public void TriggerActionViaActionName(string actionName)
         {
+            if (!string.IsNullOrEmpty(_lastActionName)
+                && actionName != _lastActionName
+                && Time.time - _lastTriggerTime < minHoldSeconds)
+            {
+                IVALogger.Debug("FacialExpressionAnimator",
+                    $"Drop '{actionName}' — still holding '{_lastActionName}' ({minHoldSeconds - (Time.time - _lastTriggerTime):0.0}s left)");
+                return;
+            }
+
             foreach (AgentFacialAnimation action in avaliableAnimations)
             {
 
@@ -48,6 +63,8 @@ namespace IVH.Core.Actions
                     Debug.Log("triggering action with name:" + action.GetType().Name);
                     //action.TriggerSimpleAnimation(animator);
                     animator.SetTrigger(action.GetType().Name);
+                    _lastActionName = actionName;
+                    _lastTriggerTime = Time.time;
 
                     return;
                 }

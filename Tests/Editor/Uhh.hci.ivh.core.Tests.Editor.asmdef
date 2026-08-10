@@ -1,0 +1,25 @@
+{
+    "name": "Uhh.hci.ivh.core.Tests.Editor",
+    "rootNamespace": "IVH.Core.Tests",
+    "references": [
+        "GUID:b193674ba3391294db039dd816de379f",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

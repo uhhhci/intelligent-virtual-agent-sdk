@@ -12,7 +12,7 @@ public class AnimationControllerSetup : EditorWindow
     private List<AnimationClip> animationClips = new List<AnimationClip>();
     private string layerName = "FacialExpression";
     private string targetStateName = "StandingIdle";
-    [MenuItem("Tools/Animation Controller Setup")]
+    [MenuItem("IVA SDK/Animation Controller Setup")]
     public static void ShowWindow()
     {
         GetWindow<AnimationControllerSetup>("Animation Controller Setup");

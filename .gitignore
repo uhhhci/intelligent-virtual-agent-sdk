@@ -63,6 +63,10 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
+#claude
+claude.md
+claude.md.meta
+.claude
 # Packed Addressables
 /[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
 
@@ -105,3 +109,5 @@ Temporary Items
 # iCloud generated files
 *.icloud
 *.idea
+toTest.md
+toTest.md.meta

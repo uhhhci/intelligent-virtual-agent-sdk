@@ -21,23 +21,25 @@ public class CloudServiceManager : MonoBehaviour
     private OpenAIWrapper openAIWrapper;
     private GoogleCloudAIWrapper googleCloudWrapper;
     //private LocalLLMWrapper localLLM;
+#if IVA_HAS_WHISPER
     private WhisperSTT whisperSTT;
+#endif
     private OllamaWrapper ollamaWrapper;
     
     protected static event Action<string> OnResponse;
     protected static event Action OnRequest;
 
-    // Start is called before the first frame update
     void Awake()
     {
         _serviceConnectorManager = ServiceConnectorManager.Instance.InitializeSingleton();
-        // this is temporary solution. later on will port all services to the server. 
         azureSpeech = FindObjectOfType<AzureSpeech>();
         elevenLabTTS = FindObjectOfType<ElevenLabTTS>();
         openAIWrapper = FindObjectOfType<OpenAIWrapper>();
         googleCloudWrapper = FindObjectOfType<GoogleCloudAIWrapper>();
         //localLLM = FindObjectOfType<LocalLLMWrapper>();
+#if IVA_HAS_WHISPER
         whisperSTT = FindObjectOfType<WhisperSTT>();
+#endif
         ollamaWrapper = FindObjectOfType<OllamaWrapper>();
     }
     
@@ -62,6 +64,7 @@ public class CloudServiceManager : MonoBehaviour
         }
         else if (STTService == VoiceRecognitionService.Local_Whisper)
         {
+#if IVA_HAS_WHISPER
             if (whisperSTT != null)
             {
                 whisperSTT.GetSpeechToText((final_result) =>
@@ -75,6 +78,10 @@ public class CloudServiceManager : MonoBehaviour
                 Debug.LogWarning("Local STT service (Whisper) is not set up.");
                 tcs.TrySetResult(null);
             }
+#else
+            Debug.LogWarning("Local_Whisper requested but com.whisper.unity is not installed. Install it via IVA SDK → Setup Wizard.");
+            tcs.TrySetResult(null);
+#endif
         }
         else
         {
@@ -370,21 +377,13 @@ public class CloudServiceManager : MonoBehaviour
         }
     }
 
-    // public async Task<string> SendLocalLLMTextRequest(string userMessage)// TODO: Implement local model
-    // {
-    //     return await localLLM.SendPrompt(userMessage);
-    // }
-
-    // Currently only accomodate gemini tools, because OpenAI doesn't support tool calling along with text response
-    // In case of future support of OpenAI, needs to make tool calling more generic. 
+    // Only Gemini tools are supported here — OpenAI does not allow tool calling together with a text response.
     public async Task<string> QueryVLM(string userMessage, List<ChatMessage> _conversation, FoundationModels serviceType, byte[] imageData, List<GeminiTool> geminiTools = null)
     {
         if (serviceType == FoundationModels.Unity_Gemini_VLM)
         {
-            // Convert List<ChatMessage> to List<GeminiMessage>
-            // Careful, this can be slow, think about a better future solution
             var geminiConversation = _conversation
-                .OfType<GeminiMessage>() // Filters and casts to GeminiMessage
+                .OfType<GeminiMessage>()
                 .ToList();
             return await SendGeminiImageRequest(userMessage, geminiConversation, imageData, geminiTools);
 

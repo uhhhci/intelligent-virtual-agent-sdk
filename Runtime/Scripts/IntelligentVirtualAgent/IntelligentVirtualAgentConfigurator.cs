@@ -6,13 +6,10 @@ namespace IVH.Core.IntelligentVirtualAgent
 {
     public class IntelligentVirtualAgentConfigurator : MonoBehaviour
     {
-        // Start is called before the first frame update
         public GameObject agentPrefab;
 
-        // Public field to assign the Animator Controller
         public RuntimeAnimatorController animatorController;
 
-        // Reference to the instantiated virtual agent
         [SerializeField,HideInInspector] private GameObject agentInstance;
 
         private SimpleChatBehaviour simpleChatBehavior;
@@ -21,7 +18,6 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             if (agentPrefab != null && agentInstance == null)
             {
-                // Instantiate the agent prefab at the position and rotation of the AGENT
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = "Agent";
                 // Set the agentInstance's parent to the AGENT

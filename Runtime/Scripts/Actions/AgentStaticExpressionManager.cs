@@ -5,7 +5,6 @@ using UnityEditor;
 
 namespace IVH.Core.Actions
 {
-    // Note: in the CC4 RealIlusion Import namespace, there are already predefined dictionary of character morph avaliable 
     public enum FacialExpressionType
     {
         HAPPY,
@@ -15,20 +14,16 @@ namespace IVH.Core.Actions
         ANGRY,
         NEUTRAL
     }
-    // For CC4 agent
 #if UNITY_EDITOR
     [CustomEditor(typeof(AgentStaticExpressionManager))]
     public class AgentStaticExpressionManagerEditor : Editor
     {
         public override void OnInspectorGUI()
         {
-            // Draw the default inspector
             DrawDefaultInspector();
 
-            // Get reference to the target script
             AgentStaticExpressionManager animator = (AgentStaticExpressionManager)target;
 
-            // Add buttons for each facial expression
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Facial Expression Controls", EditorStyles.boldLabel);
 
@@ -52,7 +47,6 @@ namespace IVH.Core.Actions
 
         private void Awake()
         {
-            // Automatically find SkinnedMeshRenderer if not assigned
             if (skinnedMeshRenderer == null)
             {
                 skinnedMeshRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
@@ -63,7 +57,6 @@ namespace IVH.Core.Actions
             }
         }
 
-        // Method to set the facial expression based on the given expression type
         public void SetFacialExpression(FacialExpressionType expressionType)
         {
             ApplyFaceExpression(FACE_NEUTRAL);
@@ -71,7 +64,6 @@ namespace IVH.Core.Actions
             ApplyFaceExpression(expressionDict);
         }
 
-        // Helper method to get the corresponding dictionary for the facial expression
         private Dictionary<string, float> GetExpressionDictionary(FacialExpressionType expressionType)
         {
             switch (expressionType)
@@ -89,10 +81,10 @@ namespace IVH.Core.Actions
                 case FacialExpressionType.NEUTRAL:
                     return FACE_NEUTRAL;
                 default:
-                    return FACE_NEUTRAL; // Return an empty dictionary for unknown expressions
+                    return FACE_NEUTRAL;
             }
         }
-        // Function to apply face expression based on the dictionary
+
         void ApplyFaceExpression(Dictionary<string, float> faceExpression)
         {
             foreach (var entry in faceExpression)
@@ -100,12 +92,10 @@ namespace IVH.Core.Actions
                 string blendshapeName = entry.Key;
                 float value = entry.Value;
 
-                // Get the blendshape index by the blendshape name
                 int blendShapeIndex = skinnedMeshRenderer.sharedMesh.GetBlendShapeIndex(blendshapeName);
 
                 if (blendShapeIndex != -1)
                 {
-                    // Apply the value to the blendshape
                     skinnedMeshRenderer.SetBlendShapeWeight(blendShapeIndex, value);
                 }
                 else
@@ -116,7 +106,7 @@ namespace IVH.Core.Actions
         }
 
         #region basic facial expression
-        // Facial Expressions pre-defined blendshape morph, taken from CC4 RealIlusion.Import
+        // Pre-defined blendshape morphs sourced from CC4 RealIllusion.Import.
         public static Dictionary<string, float> FACE_HAPPY = new Dictionary<string, float>
         {
             {"Brow_Raise_Inner_L", 0f },

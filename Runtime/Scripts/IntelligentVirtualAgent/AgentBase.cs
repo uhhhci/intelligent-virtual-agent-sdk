@@ -1,11 +1,14 @@
 using System;
 using System.Collections;
+using System.Text;
 using UnityEngine;
 using UnityEditor;
 using IVH.Core.ServiceConnector;
 using IVH.Core.Actions;
 using Newtonsoft.Json;
 using IVH.Core.Utils.StaticHelper;
+using IVH.Core.IntelligentVirtualAgent.Presets;
+using IVH.Core.Knowledge;
 using UnityEngine.UI;
 using System.Runtime.Versioning;
 using System.ComponentModel.Design.Serialization;
@@ -14,49 +17,140 @@ using UnityEngine.AI;
 
 namespace IVH.Core.IntelligentVirtualAgent
 {
-    // similar to basic social interactions
+    /// <summary>
+    /// Abstract base class for all intelligent virtual agents. Owns the avatar instance,
+    /// cloud-service wiring, demographics used in prompt construction, and the non-verbal
+    /// behavior subsystems (expressions, body motion, gaze, locomotion).
+    /// Subclasses add conversation loops — e.g. <see cref="GeminiLiveAgent"/> for realtime voice,
+    /// <see cref="ConversationalAgent"/> for modular STT/LLM/TTS pipelines.
+    /// </summary>
     public abstract class AgentBase : MonoBehaviour
     {
+        [Header("Preset (optional)")]
+        /// <summary>
+        /// Optional <see cref="AgentPreset"/> applied in <c>Awake()</c> before any other setup. Fields
+        /// on this preset override matching fields on the agent. Leave empty for legacy behavior.
+        /// </summary>
+        public AgentPreset preset;
+
         [Header("General Agent Attributes")]
+        /// <summary>Prefab of the 3D avatar this agent will instantiate at setup time.</summary>
         public GameObject agentPrefab;
 
+        /// <summary>Prefab containing the <see cref="CloudServiceManager"/>. Only required for non-Gemini-Live agents.</summary>
         [Tooltip("Choose your cloud service manager prefab, which can be found in the IVA-SDK-Core>Runtime>Prefab folder. ")]
         public GameObject cloudServiceManagerPrefab;
+
+        /// <summary>Which facial-emotion backend to use: FACS-based blendshapes or CC4 animation database.</summary>
         public EmotionHandlerType emotionHandlerType;
+
+        /// <summary>Avatar rig family. Determines blendshape naming conventions and available animations.</summary>
         public CharacterType characterType = CharacterType.CC4OrDIDIMO;
+
+        /// <summary>Source of body animations. Rocketbox and Mixamo have different clip sets.</summary>
         public BodyAnimationControllerType bodyAnimationControllerType = BodyAnimationControllerType.Rocketbox;
+
+        /// <summary>Animator controller applied to the avatar at runtime.</summary>
         public RuntimeAnimatorController animatorController;
-        
+
         [Header("Agent Demographics")]
-        //public MBTI personality; 
-        public string agentName = "";
-        public int age = 30;
-        public Gender gender = Gender.Nonbinary;
-        public string occupation = "";
         //public MBTI personality;
+        /// <summary>Display name of the agent. Included in the generated system prompt.</summary>
+        public string agentName = "";
+
+        /// <summary>Agent's age in years. Included in the generated system prompt.</summary>
+        public int age = 30;
+
+        /// <summary>Agent's gender. Included in the generated system prompt and used for gender-specific animations.</summary>
+        public Gender gender = Gender.Nonbinary;
+
+        /// <summary>Agent's occupation (e.g. "tutor", "therapist"). Included in the generated system prompt.</summary>
+        public string occupation = "";
+
+        //public MBTI personality;
+        /// <summary>Primary language the agent speaks. Affects STT model selection and TTS voice defaults.</summary>
         public AgentLanguage language;
+
+        /// <summary>Free-form additional persona description appended to the generated system prompt.</summary>
         public string additionalDescription="";
         protected float agentHeight;
 
         [Header("Cloud Service Settings")]
         // Connect to Services
         protected CloudServiceManager cloudServiceManager;
+
+        /// <summary>TTS provider to use for speech synthesis (Azure, ElevenLabs, Gemini native, etc.).</summary>
         public VoiceService TTSService;
+
+        /// <summary>Foundation LLM for non-realtime conversation flows. Ignored for Gemini Live agents which use their own wrapper.</summary>
         public FoundationModels foundationModel;
+
+        /// <summary>STT provider to use for speech recognition (Azure, Whisper local, Google, etc.).</summary>
         public VoiceRecognitionService STTService;
         protected string systemPrompt = "";
 
         [Header("Agent Vision Settings")]
+        /// <summary>Master toggle for visual input. When true, the agent streams frames to a vision-capable LLM.</summary>
         [HideInInspector] public bool vision = false;
+
+        /// <summary>Which camera feed to use for vision: the avatar's in-world camera, or an external webcam.</summary>
         [HideInInspector] public TargetCameraType targetCameraType = TargetCameraType.AgentCamera;
+
+        /// <summary>When vision frames are captured: continuously (Auto) or only when a trigger phrase is spoken.</summary>
         [HideInInspector] public ImageTriggerMode imageTriggerMode = ImageTriggerMode.Auto;
+
+        /// <summary>Image resolution sent to the LLM. Higher = more tokens and cost.</summary>
         [HideInInspector] public ImageResolution resolution = ImageResolution.VGA;
+
+        /// <summary>Device name of the webcam to use when <see cref="targetCameraType"/> is <c>WebCam</c>.</summary>
         [HideInInspector] public string selectedWebCamName = "";
         protected string triggerPhrase = "what are you seeing";
         protected WebCamTexture webCamTexture;
+
+        /// <summary>
+        /// Lazy-allocates and starts the agent's <c>WebCamTexture</c> so callers (typically the in-game
+        /// settings panel) can show a live preview or switch <see cref="targetCameraType"/> to
+        /// <c>WebCam</c> at runtime — even if the agent was launched in <c>AgentCamera</c> mode and
+        /// never allocated a webcam in <c>Awake</c>. If a device name is supplied and differs from the
+        /// currently-running one, the old texture is stopped and replaced.
+        /// </summary>
+        /// <param name="deviceName">Optional <c>WebCamDevice</c> name. <c>null</c> or empty falls back
+        /// to <see cref="selectedWebCamName"/>, then to the platform default.</param>
+        /// <returns>The active <c>WebCamTexture</c>, or <c>null</c> if no camera devices are available.</returns>
+        public WebCamTexture EnsureWebCamReady(string deviceName = null)
+        {
+            if (WebCamTexture.devices.Length == 0) return null;
+
+            string target = !string.IsNullOrEmpty(deviceName)
+                ? deviceName
+                : (!string.IsNullOrEmpty(selectedWebCamName) ? selectedWebCamName : null);
+
+            if (webCamTexture != null && webCamTexture.isPlaying
+                && (target == null || webCamTexture.deviceName == target))
+            {
+                return webCamTexture;
+            }
+
+            if (webCamTexture != null)
+            {
+                if (webCamTexture.isPlaying) webCamTexture.Stop();
+            }
+
+            webCamTexture = target != null ? new WebCamTexture(target) : new WebCamTexture();
+            webCamTexture.Play();
+            if (rawImage != null)
+            {
+                rawImage.texture = webCamTexture;
+                if (rawImage.material != null) rawImage.material.mainTexture = webCamTexture;
+            }
+            return webCamTexture;
+        }
+
+        /// <summary>Optional UI target that will display the webcam preview.</summary>
         [HideInInspector] public RawImage rawImage;  // Drag a RawImage UI element here to display the webcam feed
 
         // vision module
+        /// <summary>Runtime reference to the in-world camera attached to the avatar's head.</summary>
         [HideInInspector] public Camera agentVisionCamera;
         protected byte[] egoImageData;
         protected byte[] egoDepthData;
@@ -65,10 +159,6 @@ namespace IVH.Core.IntelligentVirtualAgent
         //[Header("Physics Based Animations")]
         //[HideInInspector] public bool physicsBasedAnimation = false;
         // add components and settings for the animation package
-
-        [Header("Action Recognition")]
-        [HideInInspector] public bool actionRecognition = false;
-        // add some settings here when integrating JRS package
 
         // Service Selection
         [Header("Agent Non Verbal Cues")]
@@ -113,6 +203,8 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         protected virtual void Awake()
         {
+            if (preset != null) preset.ApplyTo(this);
+
             if (cloudServiceManagerInstance != null)
             {
                 cloudServiceManager = cloudServiceManagerInstance.GetComponent<CloudServiceManager>();
@@ -187,8 +279,17 @@ namespace IVH.Core.IntelligentVirtualAgent
             return animator;
         }
         #region agent features
+
+        /// <summary>
+        /// Synthesizes and plays speech through the configured TTS service. Override in subclasses
+        /// to add lip-sync gating or alternate audio routing.
+        /// </summary>
+        /// <param name="text">The text to speak. Must not be null.</param>
         public virtual IEnumerator Speak(string text) { yield return cloudServiceManager.TTS(text, agentAudioSource, TTSService); }
 
+        /// <summary>
+        /// Captures microphone input and returns the recognized transcript via the configured STT service.
+        /// </summary>
         public virtual async Task Listen()
         {
             // Await the result directly from the async STT method.
@@ -205,6 +306,11 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
+        /// <summary>
+        /// Triggers a facial expression by name. The handler used depends on <see cref="emotionHandlerType"/>:
+        /// FACS drives blendshapes directly; CC4_Animation plays a named facial animation clip.
+        /// </summary>
+        /// <param name="emotion">Expression name (e.g. "happy", "sad"). Case-sensitive to the handler's vocabulary.</param>
         public void ExpressEmotion(string emotion)
             {
                 if (emotionHandlerType == EmotionHandlerType.FACS)
@@ -218,8 +324,17 @@ namespace IVH.Core.IntelligentVirtualAgent
                 }
             }
 
+        /// <summary>
+        /// Plays a named body animation (wave, dance, greet, etc.) via <see cref="AgentBodyMotionController"/>.
+        /// </summary>
+        /// <param name="action">Animation name, as defined in the active body animation controller.</param>
         public void PerformAction(string action) { actionController.TriggerActionViaActionName(action); }
 
+        /// <summary>
+        /// Builds the default system prompt from demographics and available non-verbal tool vocabulary.
+        /// Override to inject custom persona instructions, domain-specific rules, or alternate output formats.
+        /// </summary>
+        /// <returns>The constructed system-prompt string.</returns>
         public virtual string createSystemPrompt()
         {
             string bodyLanguageTools = "";
@@ -322,18 +437,15 @@ namespace IVH.Core.IntelligentVirtualAgent
             agentVisionCamera.targetTexture = renderTexture;
             agentVisionCamera.Render();
 
-            // Read pixels from the RenderTexture
             RenderTexture.active = renderTexture;
             Texture2D texture2D = new Texture2D(res.x, res.y, TextureFormat.RGB24, false);
             texture2D.ReadPixels(new Rect(0, 0, res.x, res.y), 0, 0);
             texture2D.Apply();
 
-            // Cleanup
             agentVisionCamera.targetTexture = null;
             RenderTexture.active = null;
             Destroy(renderTexture);
 
-            // Encode the texture to PNG
             egoImageData = texture2D.EncodeToPNG();
             Destroy(texture2D);
         }
@@ -343,57 +455,46 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             yield return new WaitForEndOfFrame();
 
-            // 1. Calculate dimensions (Max 512px width to save tokens/bandwidth)
+            // Cap width at 512px to save tokens/bandwidth.
             float aspect = (float)webCamTexture.width / webCamTexture.height;
-            int targetWidth = 512; 
+            int targetWidth = 512;
             int targetHeight = Mathf.RoundToInt(targetWidth / aspect);
 
-            // 2. Use a Temporary RenderTexture for GPU-based resizing (Fast!)
+            // Resize on the GPU via a temporary RenderTexture + Blit.
             RenderTexture rt = RenderTexture.GetTemporary(targetWidth, targetHeight, 0);
-            
-            // 3. Blit copies and resizes the webcam texture into the small RenderTexture
             Graphics.Blit(webCamTexture, rt);
 
-            // 4. Read the pixels from the RenderTexture into a Texture2D
             RenderTexture.active = rt;
             Texture2D resultTex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
             resultTex.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
             resultTex.Apply();
 
-            // 5. Cleanup GPU memory immediately
             RenderTexture.active = null;
             RenderTexture.ReleaseTemporary(rt);
 
-            // 6. Encode to JPG (Quality 50 is sufficient for AI vision)
-            // This creates the final byte[] array ready for Gemini
-            webCamImageData = resultTex.EncodeToJPG(50); 
+            // JPG quality 50 is sufficient for AI vision.
+            webCamImageData = resultTex.EncodeToJPG(50);
 
-            // 7. Cleanup CPU memory
             Destroy(resultTex);
         }
 
         protected void CaptureDepth(Vector2Int res)
         {
-            // Create a RenderTexture for depth capture
             RenderTexture renderTexture = new RenderTexture(res.x, res.y, 24, RenderTextureFormat.Depth);
             agentVisionCamera.targetTexture = renderTexture;
 
-            // Set the camera to render with a depth shader
             agentVisionCamera.RenderWithShader(Shader.Find("Hidden/Internal-DepthNormalsTexture"), null);
 
-            // Read pixels from the RenderTexture
             RenderTexture.active = renderTexture;
             Texture2D depthTexture = new Texture2D(res.x, res.y, TextureFormat.RFloat, false);
             depthTexture.ReadPixels(new Rect(0, 0, res.x, res.y), 0, 0);
             depthTexture.Apply();
 
-            // Cleanup
             agentVisionCamera.targetTexture = null;
             RenderTexture.active = null;
             Destroy(renderTexture);
 
-            // Encode the depth texture to a format if needed (e.g., PNG or custom raw format)
-            egoDepthData = depthTexture.EncodeToPNG(); // Optional, depends on use case
+            egoDepthData = depthTexture.EncodeToPNG();
             Destroy(depthTexture);
 
         }
@@ -401,10 +502,42 @@ namespace IVH.Core.IntelligentVirtualAgent
         #endregion
 
         #region Agent Configuration and initialization
-        public CloudServiceManager getCloudServiceManager() { return cloudServiceManager; } 
+
+        /// <summary>Returns the agent's <see cref="CloudServiceManager"/> instance. Null for Gemini Live agents.</summary>
+        public CloudServiceManager getCloudServiceManager() { return cloudServiceManager; }
+
+        /// <summary>Returns the currently-active system prompt (after any runtime overrides).</summary>
         public string getSystemPrompt() { return systemPrompt; }
 
-        public void setSystemPrompt(string prompt) { systemPrompt = prompt; }  
+        /// <summary>Overrides the auto-generated system prompt with a custom one. Call before <see cref="SetupVirtualAgent"/>.</summary>
+        public void setSystemPrompt(string prompt) { systemPrompt = prompt; }
+
+        /// <summary>
+        /// Aggregates context-prefix output from every <see cref="IContextProvider"/> attached to
+        /// this GameObject (e.g. <see cref="Knowledge.DocumentGroundingComponent"/>, long-term
+        /// <see cref="Memory.MemoryManager"/>) and returns a single concatenated string the
+        /// subclass agent prepends to its prompt before each LLM call.
+        /// </summary>
+        /// <param name="querySeed">
+        /// The current user utterance, or any short topical seed. May be null for realtime agents
+        /// that retrieve once at session start.
+        /// </param>
+        /// <returns>The concatenated prefix, or empty string when no provider returns content.</returns>
+        /// <remarks>
+        /// Default implementation aggregates over <c>GetComponents&lt;IContextProvider&gt;()</c> in
+        /// component order. Override only when you need custom ordering or composition. Returning
+        /// the empty string is bit-identical to v3.0 behavior.
+        /// </remarks>
+        public virtual Task<string> BuildContextPrefixAsync(string querySeed)
+        {
+            return ContextProviderAggregator.BuildPrefixAsync(gameObject, querySeed);
+        }
+
+        /// <summary>
+        /// Instantiates the avatar prefab and wires up all default subsystems: animator, lip-sync,
+        /// body-motion controller, facial expression animator, emotion handler, vision camera,
+        /// blink behavior, eye-gaze controller, and audio source. Safe to call once per agent lifetime.
+        /// </summary>
         public virtual void SetupVirtualAgent()
         {
 
@@ -439,6 +572,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
+        /// <summary>
+        /// Tears down the avatar instance and cloud service manager. Safe to call multiple times.
+        /// Does not destroy the <see cref="AgentBase"/> component itself.
+        /// </summary>
         public void DestroyVirtualAgent()
         {
             if (ListeningIndicator != null && ThinkingIndicator!=null)
@@ -469,16 +606,13 @@ namespace IVH.Core.IntelligentVirtualAgent
             characterController = agentInstance.AddComponent<CharacterController>();
             // Calculate the height based on the model
             agentHeight = CalculateCharacterHeight();
-            //float height = CalculateCharacterHeight();
 
-            // Configure the CharacterController
             characterController.height = agentHeight;
             characterController.center = new Vector3(0, agentHeight / 2, 0);
         }
-        // Assign the animator controller to the agent
+
         public void AssignAnimatorController()
         {
-            // Check if the agentInstance has an Animator component
             animator = agentInstance.GetComponentInChildren<Animator>();
             if (animator != null && animatorController != null)
             {
@@ -490,13 +624,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
-        // Function to attach the OVRLipSyncContextMorphTarget script
         public void SetupLipSync()
         {
-            // check if the agentinstance is not null
             if (agentInstance != null)
             {
-                // Attach Oculus LipSync scripts to the agent instance
                 OVRLipSync ovrLipSync = agentInstance.AddComponent<OVRLipSync>();
 
                 OVRLipSyncContext ovrLipSyncContext = agentInstance.AddComponent<OVRLipSyncContext>();

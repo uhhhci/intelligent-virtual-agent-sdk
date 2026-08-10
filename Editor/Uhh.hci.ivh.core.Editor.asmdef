@@ -15,6 +15,17 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.whisper.unity",
+            "expression": "",
+            "define": "IVA_HAS_WHISPER"
+        },
+        {
+            "name": "com.gpt4all.unity",
+            "expression": "",
+            "define": "IVA_HAS_GPT4ALL"
+        }
+    ],
     "noEngineReferences": false
 }
