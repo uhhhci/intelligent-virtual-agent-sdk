@@ -1,0 +1,14 @@
+{
+    "name": "Uhh.hci.ivh.core.LocalVoice.Core",
+    "rootNamespace": "IVH.Core.ServiceConnector.LocalVoice",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
