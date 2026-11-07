@@ -36,6 +36,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
     /// <see cref="IntelligentVirtualAgent.GeminiVoiceOnlyAgent"/>) sit on top of this wrapper.
     /// Subscribe to the public events to react to server output.
     /// </remarks>
+    /// <summary>What Gemini answers in. AUDIO is what every Live model supports; TEXT only where the model accepts it.</summary>
+    public enum GeminiResponseModality { Audio, Text }
+
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         private const string LogTag = "GeminiRealtime";
@@ -92,6 +95,14 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         [Tooltip("Ask Gemini to also stream text transcripts of the user and agent speech. Off by default (v2.3.3 compat).")]
         public bool enableTranscription = false;
 
+        /// <summary>
+        /// AUDIO (default): Gemini speaks. TEXT: Gemini writes and something else speaks (the hybrid agent's
+        /// <c>LocalVoiceSpeaker</c>). The native-audio models may refuse TEXT; with AUDIO the hybrid speaks
+        /// Gemini's output transcription instead, which every Live model provides.
+        /// </summary>
+        [Tooltip("AUDIO: Gemini speaks. TEXT: Gemini only writes (for a local voice); not every Live model accepts it.")]
+        public GeminiResponseModality responseModality = GeminiResponseModality.Audio;
+
         // Events
         /// <summary>Fired on the main thread once Gemini acknowledges the setup message and is ready for input.</summary>
         public Action OnSetupComplete;
@@ -141,6 +152,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// agent to know when it's safe to clear post-interrupt audio drop guards.
         /// </summary>
         public Action OnServerInterrupted;
+
+        /// <summary>Gemini finished its turn (<c>serverContent.turnComplete</c>): every word of the reply has been sent.</summary>
+        public Action OnTurnComplete;
 
         [Header("Auto-Reconnect (opt-in)")]
         /// <summary>If true, attempts to re-establish the session after unexpected disconnects. Defaults to false for v2.3.3 compatibility.</summary>
@@ -432,7 +446,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private JObject BuildSetupContent(string model, string systemPrompt, string voice)
         {
             var generationConfig = new JObject();
-            generationConfig["response_modalities"] = new JArray("AUDIO");
+            generationConfig["response_modalities"] = new JArray(responseModality == GeminiResponseModality.Text ? "TEXT" : "AUDIO");
 
             // Gemini 2.5 runs *dynamic thinking by default*, which inserts a reasoning pause before
             // every spoken reply. In a realtime voice session that pause is the dominant source of
@@ -450,7 +464,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             var voiceConfig = new JObject();
             voiceConfig["prebuilt_voice_config"] = new JObject { ["voice_name"] = voice };
             speechConfig["voice_config"] = voiceConfig;
-            generationConfig["speech_config"] = speechConfig;
+            if (responseModality == GeminiResponseModality.Audio) generationConfig["speech_config"] = speechConfig;
 
             var setupContent = new JObject
             {
@@ -771,6 +785,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                         // audio drop guards.
                         EnqueueMainThread(() => OnServerInterrupted?.Invoke());
                     }
+
+                    if (serverContent["turnComplete"]?.Value<bool>() == true || serverContent["turn_complete"]?.Value<bool>() == true)
+                        EnqueueMainThread(() => OnTurnComplete?.Invoke());
 
                     // Server-side transcription channels (only present when enableTranscription is true).
                     JToken outObj = serverContent["outputTranscription"] ?? serverContent["output_transcription"];

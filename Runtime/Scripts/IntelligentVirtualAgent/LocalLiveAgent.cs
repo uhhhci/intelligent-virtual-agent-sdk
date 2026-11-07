@@ -64,8 +64,16 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Tooltip("Ask for short spoken replies (one to three sentences). Small local models ramble otherwise.")]
         public bool shortReplies = true;
 
-        [Tooltip("Upper bound on grounding text (characters) put in the system prompt. Qwen3-1.7B on the server reads about 4 characters per token.")]
-        public int maxContextChars = 60000;
+        /// <remarks>
+        /// The server's model (Qwen3-1.7B through Ollama) has a 16,384-token context, and Ollama silently cuts a
+        /// longer prompt to HALF of it from the front: measured 2026-11-08, Frank's persona plus a second
+        /// document and the avatar description arrived as 8,194 tokens, the persona's start was lost and
+        /// every turn re-read the whole prompt (1.6 s before the first word). 44,000 characters (~10k tokens
+        /// at ~4.3 characters per token) leaves room for the rules, the avatar description and the
+        /// conversation, and keeps the prefix stable so it is cached after the first turn.
+        /// </remarks>
+        [Tooltip("Upper bound on grounding text (characters) in the system prompt. The local model's context is 16k tokens; a longer prompt is cut in half by Ollama. ~4.3 characters per token.")]
+        public int maxContextChars = 44000;
 
         [Header("Embodiment Self-Description")]
         public bool describeEmbodimentCapabilities = false;
@@ -202,6 +210,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 knowledge = knowledge.Substring(0, maxContextChars);
             }
             string prompt = knowledge + BuildSystemPrompt();
+            Debug.Log($"[LocalLiveAgent] system prompt {prompt.Length} characters (grounding {knowledge.Length}), voice {voiceName}");
             _wrapper.InputSampleRate = 16000;
 
             var toolManager = GetComponent<GeminiToolManager>();

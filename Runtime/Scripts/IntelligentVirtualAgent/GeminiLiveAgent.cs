@@ -133,6 +133,12 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private Coroutine _visionCoroutine;
         private GeminiRealtimeWrapper _realtimeWrapper;
+
+        /// <summary>The hybrid agent's local voice, when a <see cref="IVH.Core.ServiceConnector.LocalVoice.LocalVoiceSpeaker"/> is enabled on this object: Gemini's audio is then not played.</summary>
+        private IVH.Core.ServiceConnector.LocalVoice.LocalVoiceSpeaker _localVoice;
+        private bool UsesLocalVoice => _localVoice != null && _localVoice.isActiveAndEnabled;
+        /// <summary>The agent is talking: Gemini's clip playing, or the local voice's buffer.</summary>
+        private bool AgentSpeaking => UsesLocalVoice ? _localVoice.IsSpeaking : _isPlaying;
         private List<float> _audioBuffer = new List<float>();
         private StringBuilder _fullTranscript = new StringBuilder();
         
@@ -181,6 +187,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             // UI panel, otherwise OnUserTranscriptReceived / OnTextReceived (output transcription)
             // never fire and the log stays blank even with logTextDisplay wired.
             if (showSpeechTranscripts) _realtimeWrapper.enableTranscription = true;
+
+            _localVoice = GetComponent<IVH.Core.ServiceConnector.LocalVoice.LocalVoiceSpeaker>();
+            if (_localVoice != null && _localVoice.enabled && agentInstance != null)
+                _localVoice.Attach(_realtimeWrapper, agentInstance, agentAudioSource != null ? agentAudioSource : agentInstance.GetComponent<AudioSource>());
 
             _realtimeWrapper.OnSetupComplete += HandleReady;
             _realtimeWrapper.OnAudioReceived += HandleAudioReceived;
@@ -404,11 +414,11 @@ namespace IVH.Core.IntelligentVirtualAgent
                 float[] samples = new float[diff];
                 _micClip.GetData(samples, _lastMicPos);
 
-                float currentThreshold = _isPlaying ? echoInterruptionThreshold : voiceDetectionThreshold;
+                float currentThreshold = AgentSpeaking ? echoInterruptionThreshold : voiceDetectionThreshold;
 
                 bool isUserTalking = IsSpeechDetected(samples, currentThreshold);
 
-                if (_isPlaying)
+                if (AgentSpeaking)
                 {
                     if (isUserTalking && enableVocalInterruption)
                     {
@@ -469,6 +479,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void InterruptPlayback(InterruptionSource source, string reason, float magnitude)
         {
+            if (UsesLocalVoice) _localVoice.Interrupt();
             if (agentAudioSource.isPlaying) agentAudioSource.Stop();
             _audioBuffer.Clear();
             _isPlaying = false;
@@ -507,7 +518,7 @@ namespace IVH.Core.IntelligentVirtualAgent
         /// </summary>
         public void RequestInterrupt(string reason = "programmatic")
         {
-            if (!_isPlaying) return;
+            if (!AgentSpeaking) return;
             InterruptPlayback(InterruptionSource.Programmatic, reason, 0f);
         }
 
@@ -550,6 +561,8 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandleAudioReceived(byte[] pcmData)
         {
+            // The hybrid speaks Gemini's words in the local voice; Gemini's own audio is not played.
+            if (UsesLocalVoice) return;
             if (Time.time < _ignoreAudioUntil) return;
 
             // Drop residual audio from the interrupted turn until Gemini acks server-side.
@@ -572,6 +585,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void ProcessAudioPlayback()
         {
+            if (UsesLocalVoice) return;
             if (Time.time < _ignoreAudioUntil) return;
             if (_droppingAudioPostInterrupt && Time.time < _postInterruptDropUntil) return;
 
