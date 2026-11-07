@@ -10,9 +10,9 @@ namespace IVH.Core.Actions
         public SkinnedMeshRenderer faceRenderer;
         public string leftEyeBlendShapeName = "Eye_Blink_L"; // cc4 convention
         public string rightEyeBlendShapeName = "Eye_Blink_R";
-        // Blendshape indices for ARKit standard eye blinks
-        private int eyeBlinkLeftIndex = -1;
-        private int eyeBlinkRightIndex = -1;
+
+        [Tooltip("Other meshes that carry their own copy of the blink blendshapes (e.g. Avatar SDK eyelashes). They blink together with the face renderer.")]
+        public List<SkinnedMeshRenderer> additionalRenderers = new List<SkinnedMeshRenderer>();
 
         // Blink animation parameters
         public float minBlinkInterval = 0.3f; // Minimum time between blinks in seconds
@@ -21,16 +21,23 @@ namespace IVH.Core.Actions
 
         private float nextBlinkTime = 0f;
         private bool isBlinking = false;
+        private BlendshapeBinding leftBlink;
+        private BlendshapeBinding rightBlink;
+
+        /// <summary>Current procedural blink weight (0-100). Lets other face drivers combine their own blinks with it.</summary>
+        public float CurrentWeight { get; private set; }
 
         private void Start()
         {
-            // Validate blendshape indices
-            eyeBlinkLeftIndex = faceRenderer.sharedMesh.GetBlendShapeIndex(leftEyeBlendShapeName);
-            eyeBlinkRightIndex = faceRenderer.sharedMesh.GetBlendShapeIndex(rightEyeBlendShapeName);
+            var renderers = new List<SkinnedMeshRenderer> { faceRenderer };
+            if (additionalRenderers != null) renderers.AddRange(additionalRenderers);
 
-            if (eyeBlinkLeftIndex == -1 || eyeBlinkRightIndex == -1)
+            leftBlink = FacialBlendshapeRig.Bind(renderers, leftEyeBlendShapeName);
+            rightBlink = FacialBlendshapeRig.Bind(renderers, rightEyeBlendShapeName);
+
+            if (!leftBlink.IsValid || !rightBlink.IsValid)
             {
-                Debug.LogError("Eye blink blendshapes ('eyeBlinkLeft', 'eyeBlinkRight') not found on the SkinnedMeshRenderer.");
+                Debug.LogError($"Eye blink blendshapes ('{leftEyeBlendShapeName}', '{rightEyeBlendShapeName}') not found on the SkinnedMeshRenderer.");
                 enabled = false;
                 return;
             }
@@ -51,7 +58,7 @@ namespace IVH.Core.Actions
             nextBlinkTime = Time.time + Random.Range(minBlinkInterval, maxBlinkInterval);
         }
 
-        private System.Collections.IEnumerator Blink()
+        private IEnumerator Blink()
         {
             isBlinking = true;
 
@@ -68,9 +75,9 @@ namespace IVH.Core.Actions
             isBlinking = false;
         }
 
-        private System.Collections.IEnumerator AnimateBlendshape(float targetValue)
+        private IEnumerator AnimateBlendshape(float targetValue)
         {
-            float startValue = faceRenderer.GetBlendShapeWeight(eyeBlinkLeftIndex);
+            float startValue = leftBlink.Get();
             float elapsedTime = 0f;
             float animationTime = blinkDuration / 2f; // Half the total blink duration
 
@@ -78,13 +85,15 @@ namespace IVH.Core.Actions
             {
                 elapsedTime += Time.deltaTime;
                 float currentValue = Mathf.Lerp(startValue, targetValue, elapsedTime / animationTime);
-                faceRenderer.SetBlendShapeWeight(eyeBlinkLeftIndex, currentValue);
-                faceRenderer.SetBlendShapeWeight(eyeBlinkRightIndex, currentValue);
+                leftBlink.Set(currentValue);
+                rightBlink.Set(currentValue);
+                CurrentWeight = currentValue;
                 yield return null;
             }
 
-            faceRenderer.SetBlendShapeWeight(eyeBlinkLeftIndex, targetValue);
-            faceRenderer.SetBlendShapeWeight(eyeBlinkRightIndex, targetValue);
+            leftBlink.Set(targetValue);
+            rightBlink.Set(targetValue);
+            CurrentWeight = targetValue;
         }
     }
 }

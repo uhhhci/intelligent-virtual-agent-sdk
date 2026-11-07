@@ -62,7 +62,7 @@ namespace IVH.Core.Actions
                 {
                     Debug.Log("triggering action with name:" + action.GetType().Name);
                     //action.TriggerSimpleAnimation(animator);
-                    animator.SetTrigger(action.GetType().Name);
+                    animator.SetTrigger(AnimationTriggerAliases.Resolve(action.GetType().Name, animator));
                     _lastActionName = actionName;
                     _lastTriggerTime = Time.time;
 
@@ -174,6 +174,25 @@ namespace IVH.Core.Actions
             }
             return toolNames;
         }
+        /// <summary>
+        /// Facial animation clips matching <paramref name="actionFilter"/>. When
+        /// <paramref name="playableTriggers"/> is given, only clips the animator can actually play are kept.
+        /// </summary>
+        public List<AgentFacialAnimation> GetFacialAnimationsFiltered(FacialExpressionFilter actionFilter, ICollection<string> playableTriggers = null)
+        {
+            var result = new List<AgentFacialAnimation>();
+            string filterTag = actionFilter.ToString();
+            foreach (AgentFacialAnimation action in avaliableAnimations)
+            {
+                if (actionFilter != FacialExpressionFilter.NONE &&
+                    (action.Categories == null || !(action.Categories.Contains(filterTag) || action.Categories.Contains("Neutral"))))
+                    continue;
+                if (playableTriggers != null && !AnimationTriggerAliases.IsAvailable(action.GetType().Name, playableTriggers)) continue;
+                result.Add(action);
+            }
+            return result;
+        }
+
         public List<String> GetSimpleDidimoActionName()
         {
             List<String> toolNames = new List<String>();

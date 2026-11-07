@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEditor;
@@ -191,6 +192,10 @@ namespace IVH.Core.IntelligentVirtualAgent
         [SerializeField, HideInInspector] protected GameObject agentInstance;
         [SerializeField, HideInInspector] public GameObject cloudServiceManagerInstance;
 
+        // Animator triggers that reach a state with a clip, captured in the Editor at setup time so player
+        // builds (which cannot inspect controller graphs) still know which animations really play.
+        [SerializeField, HideInInspector] private List<string> playableAnimationTriggers = new List<string>();
+
         [HideInInspector] public Transform player;
 
         // UI indicator
@@ -356,6 +361,12 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             else { }
 
+            if (characterType == CharacterType.AvatarSDK)
+            {
+                // Name-based ARKit rig: its vocabulary comes from the EmotionHandler, not the DIDIMO list.
+                facsFacialExpressionTools = JsonConvert.SerializeObject(GetFacsEmotionNames().ToArray());
+            }
+
             string selectedFacialExpressionTools;
             switch (emotionHandlerType)
             {
@@ -503,6 +514,60 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         #region Agent Configuration and initialization
 
+        /// <summary>FACS emotion names this agent's face can render (used when <see cref="emotionHandlerType"/> is FACS).</summary>
+        public List<string> GetFacsEmotionNames()
+        {
+            if (characterType == CharacterType.AvatarSDK)
+                return new List<string>(EmotionHandler.GetSupportedEmotions(characterType));
+            return faceAnimator != null ? faceAnimator.GetSimpleDidimoActionName() : new List<string>();
+        }
+
+        /// <summary>
+        /// Animator triggers that lead to a state with a clip, i.e. animations the avatar can really play.
+        /// In the Editor the controller graph is inspected live; in player builds the list captured by
+        /// <see cref="RefreshPlayableAnimationCache"/> at setup time is used, falling back to every trigger
+        /// parameter. Returns <c>null</c> when nothing is known (no animator/controller): callers should
+        /// then not filter.
+        /// </summary>
+        public HashSet<string> GetPlayableAnimationTriggers()
+        {
+            RuntimeAnimatorController controller = ResolveAnimatorController(out Animator anim);
+
+            HashSet<string> inspected = AnimatorCapabilityInspector.GetPlayableTriggers(controller);
+            if (inspected != null) return inspected;
+
+            if (playableAnimationTriggers != null && playableAnimationTriggers.Count > 0)
+                return new HashSet<string>(playableAnimationTriggers);
+
+            HashSet<string> parameters = AnimatorCapabilityInspector.GetTriggerParameters(anim);
+            return parameters.Count > 0 ? parameters : null;
+        }
+
+        /// <summary>
+        /// Editor only: re-inspects the animator controller and stores the playable triggers in the scene,
+        /// so player builds offer the model the same animations as Play mode. Called by
+        /// <see cref="SetupVirtualAgent"/>; call again after editing the animator controller.
+        /// </summary>
+        [ContextMenu("Refresh Playable Animation Cache")]
+        public void RefreshPlayableAnimationCache()
+        {
+#if UNITY_EDITOR
+            HashSet<string> inspected = AnimatorCapabilityInspector.GetPlayableTriggers(ResolveAnimatorController(out _));
+            var refreshed = inspected != null ? new List<string>(inspected) : new List<string>();
+            refreshed.Sort(StringComparer.Ordinal);
+            if (playableAnimationTriggers != null && System.Linq.Enumerable.SequenceEqual(refreshed, playableAnimationTriggers)) return;
+            playableAnimationTriggers = refreshed;
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
+        }
+
+        /// <summary>The controller on the avatar's Animator, or <see cref="animatorController"/> before setup.</summary>
+        private RuntimeAnimatorController ResolveAnimatorController(out Animator anim)
+        {
+            anim = animator != null ? animator : (agentInstance != null ? agentInstance.GetComponentInChildren<Animator>() : null);
+            return anim != null && anim.runtimeAnimatorController != null ? anim.runtimeAnimatorController : animatorController;
+        }
+
         /// <summary>Returns the agent's <see cref="CloudServiceManager"/> instance. Null for Gemini Live agents.</summary>
         public CloudServiceManager getCloudServiceManager() { return cloudServiceManager; }
 
@@ -543,6 +608,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             if (agentPrefab != null && agentInstance == null)
             {
+                EnsureCharacterTypeCompatibility();
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
@@ -561,8 +627,10 @@ namespace IVH.Core.IntelligentVirtualAgent
                 SetupEMotionHandler();
                 SetupAgentVisionCamera();
                 SetupSimpleEyeBlink();
+                SetupFacialRetargeting();
                 SetupEyeGazeController();
                 SetupAudio();
+                RefreshPlayableAnimationCache();
                 //SetupUIIndicator();
                 //SetupAgentLocomotion();
             }
@@ -570,6 +638,31 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 Debug.LogWarning("Agent prefab is not assigned or agent is already set up.");
             }
+        }
+
+        /// <summary>Reports how the selected <see cref="characterType"/> and <see cref="emotionHandlerType"/> combine.</summary>
+        protected void EnsureCharacterTypeCompatibility()
+        {
+            if (characterType == CharacterType.AvatarSDK && emotionHandlerType == EmotionHandlerType.CC4_Animation)
+            {
+                Debug.Log("[IVA] Avatar SDK + CC4_Animation: the CC4 facial clips of the animator controller are retargeted " +
+                          "onto the ARKit blendshapes at runtime (CC4ToArKitFacialRetargeter). Use a controller with a CC4 " +
+                          "FacialExpression layer, e.g. DeafultCC4CharacterAnimatorMale.");
+            }
+        }
+
+        /// <summary>
+        /// Avatar SDK + CC4_Animation: adds the <see cref="CC4ToArKitFacialRetargeter"/> that plays CC4 facial
+        /// clips on the ARKit face. Call after <see cref="SetupSimpleEyeBlink"/> so blinks can be combined.
+        /// </summary>
+        public void SetupFacialRetargeting()
+        {
+            if (agentInstance == null || characterType != CharacterType.AvatarSDK || emotionHandlerType != EmotionHandlerType.CC4_Animation)
+                return;
+            var retargeter = agentInstance.AddComponent<CC4ToArKitFacialRetargeter>();
+            retargeter.targetRenderers = FindFaceRenderers();
+            retargeter.blink = agentInstance.GetComponent<CharacterBlinkBehavior>();
+            retargeter.lipSync = agentInstance.GetComponent<OVRLipSyncVisemeBlendshapeDriver>();
         }
 
         /// <summary>
@@ -634,10 +727,19 @@ namespace IVH.Core.IntelligentVirtualAgent
                 ovrLipSyncContext.audioLoopback = true;
                 ovrLipSyncContext.audioSource = agentInstance.GetComponent<AudioSource>();
 
+                if (characterType == CharacterType.AvatarSDK)
+                {
+                    // Visemes are named blendshapes on the head AND the lower teeth; drive them by name.
+                    var visemeDriver = agentInstance.AddComponent<OVRLipSyncVisemeBlendshapeDriver>();
+                    visemeDriver.renderers = FindFaceRenderers();
+                    visemeDriver.visemeBlendshapeNames = (string[])AvatarSdkRig.OculusVisemes.Clone();
+                }
+                else
+                {
+                    OVRLipSyncContextMorphTargetExtended ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTargetExtended>();
 
-                OVRLipSyncContextMorphTargetExtended ovrLipSyncContextMorphTarget = agentInstance.AddComponent<OVRLipSyncContextMorphTargetExtended>();
-
-                ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+                    ovrLipSyncContextMorphTarget.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+                }
 
             }
             else
@@ -650,6 +752,11 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
 
             Transform eyeTransform = FindEyeTransform(agentInstance);
+            if (eyeTransform == null)
+            {
+                Debug.LogWarning("No eye bone found on the agent; the vision camera is not created.");
+                return;
+            }
 
             GameObject agentCameraGameObj = new GameObject("AgentVisionCamera");
             agentCameraGameObj.transform.SetParent(agentInstance.transform);
@@ -698,6 +805,12 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             // Get the SimpleChatBehavior component from this GameObject
             agentAudioSource = agentInstance.GetComponent<AudioSource>();
+            if (agentAudioSource == null)
+            {
+                // Plain model files (e.g. an Avatar SDK FBX) carry no AudioSource; the agent speaks through one.
+                agentAudioSource = agentInstance.AddComponent<AudioSource>();
+                agentAudioSource.playOnAwake = false;
+            }
         }
 
 
@@ -708,7 +821,9 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 emotionHandler = agentInstance.AddComponent<EmotionHandler>();
                 emotionHandler.skinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
-                emotionHandler.characterType = characterType; 
+                emotionHandler.characterType = characterType;
+                if (characterType == CharacterType.AvatarSDK)
+                    emotionHandler.additionalRenderers = FindSecondaryFaceRenderers();
             }
             else
             {
@@ -732,8 +847,9 @@ namespace IVH.Core.IntelligentVirtualAgent
         public void SetupAgentActionController()
         {
             SkinnedMeshRenderer agentBlendshape = FindSkinnedMeshRenderer(agentInstance);
-            
-            if (agentBlendshape != null)
+
+            // The static expression presets use CC4 blendshape names; skip them on Avatar SDK rigs.
+            if (agentBlendshape != null && characterType != CharacterType.AvatarSDK)
             {
                 AgentStaticExpressionManager expressionManager = agentInstance.AddComponent<AgentStaticExpressionManager>();
                 expressionManager.skinnedMeshRenderer = agentBlendshape;
@@ -764,6 +880,13 @@ namespace IVH.Core.IntelligentVirtualAgent
                     characterBlinkBehavior.rightEyeBlendShapeName = "blendShape1.AK_10_EyeBlinkRight";
 
                 }
+                if (characterType == CharacterType.AvatarSDK)
+                {
+                    // ARKit blink shapes; the eyelashes mesh carries its own copy and must blink too.
+                    characterBlinkBehavior.leftEyeBlendShapeName = AvatarSdkRig.EyeBlinkLeft;
+                    characterBlinkBehavior.rightEyeBlendShapeName = AvatarSdkRig.EyeBlinkRight;
+                    characterBlinkBehavior.additionalRenderers = FindSecondaryFaceRenderers();
+                }
                 characterBlinkBehavior.faceRenderer = agentBlendshape;
             }
         }
@@ -771,6 +894,28 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             eyeGazeController = agentInstance.AddComponent<EyeGazeController>();
             eyeGazeController.characterSkinnedMeshRenderer = FindSkinnedMeshRenderer(agentInstance);
+            if (characterType == CharacterType.AvatarSDK)
+            {
+                // Eyeballs are separate meshes on the eye bones; eye-look blendshapes only move the lids.
+                eyeGazeController.driveEyeBones = true;
+                eyeGazeController.additionalRenderers = FindSecondaryFaceRenderers();
+                // The full idle wander (45 degrees) makes the head stare at the ceiling; keep it conversational.
+                eyeGazeController.idleGazeAmplitude = 0.35f;
+            }
+        }
+
+        /// <summary>The primary face renderer followed by every other mesh carrying facial blendshapes.</summary>
+        protected List<SkinnedMeshRenderer> FindFaceRenderers()
+        {
+            return FacialBlendshapeRig.FindFaceRenderers(agentInstance, FindSkinnedMeshRenderer(agentInstance), AvatarSdkRig.FacialMarkerShapes);
+        }
+
+        /// <summary>Face meshes other than the primary one (e.g. Avatar SDK eyelashes and lower teeth).</summary>
+        protected List<SkinnedMeshRenderer> FindSecondaryFaceRenderers()
+        {
+            var renderers = FindFaceRenderers();
+            if (renderers.Count > 0) renderers.RemoveAt(0);
+            return renderers;
         }
         public float CalculateCharacterHeight()
         {
@@ -837,7 +982,8 @@ namespace IVH.Core.IntelligentVirtualAgent
             {
                 "CC_Base_L_Eye",  // CC4 eye name
                 "Left_Eye",       // Alternative naming
-                "Bip01 LEye"      // Additional fallback
+                "Bip01 LEye",     // Additional fallback
+                AvatarSdkRig.LeftEyeBone // Avatar SDK MetaPerson
             };
 
             foreach (var name in possibleNames)
@@ -857,8 +1003,16 @@ namespace IVH.Core.IntelligentVirtualAgent
             // Define the partial name (the part that must be contained)
             string partialName = "_hipoly_81_bones_opacity";
 
+            // Avatar SDK MetaPerson: the head mesh carries the ARKit and viseme blendshapes. Checked first
+            // because CC4ToArKitFacialRetargeter adds a proxy named CC_Base_Body to these rigs at runtime.
+            GameObject skinnedMeshTransform = FindChildByName(parentObject, AvatarSdkRig.HeadMesh);
+            if (skinnedMeshTransform != null && skinnedMeshTransform.GetComponent<SkinnedMeshRenderer>() != null)
+            {
+                return skinnedMeshTransform.GetComponent<SkinnedMeshRenderer>();
+            }
+
             // First, try to find the exact name
-            GameObject skinnedMeshTransform = FindChildByName(parentObject, exactName);
+            skinnedMeshTransform = FindChildByName(parentObject, exactName);
             if (skinnedMeshTransform != null)
             {
                 return skinnedMeshTransform.GetComponent<SkinnedMeshRenderer>();
@@ -873,7 +1027,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
 
             // Log an error if neither is found
-            Debug.LogError("Skinned Mesh Renderer not found on the agent instance. Tried: " + exactName + " or a name containing " + partialName);
+            Debug.LogError("Skinned Mesh Renderer not found on the agent instance. Tried: " + exactName + ", " + AvatarSdkRig.HeadMesh + " or a name containing " + partialName);
             return null;
         }
 

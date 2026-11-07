@@ -143,7 +143,7 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
 
     - In the Emotion Handler Type, choose FACS. If you want more diverse and sophisicated facial expression animations, and if you have a license for CC4 digital soul facial expression animation database, see [CC4 Characters and Animations](#reallusion-animation).
 
-    - In the CharacterType, choose ``Rocketbox`` if you are using rocketbox character. Choose ``CC4orDIDIMO`` otherwise. 
+    - In the CharacterType, choose ``Rocketbox`` if you are using rocketbox character, ``AvatarSDK`` for an [Avatar SDK MetaPerson](#avatar-sdk-metaperson-characters) character. Choose ``CC4orDIDIMO`` otherwise. 
 
 
     - Any ``Additional Description`` will be added to the IVA's system prompt. 
@@ -154,6 +154,41 @@ The quickest way to test the toolkit is to directly open the ``intelligent-virtu
 
     - Add the `Packages/de.uhh.hci.ivh.core/Runtime/Prefabs/PreviewScenePrefab.prefab` to the scene for better lighting and appearance of the scene. 
     
+
+### Avatar SDK (MetaPerson) characters
+
+[Avatar SDK](https://avatarsdk.com/) MetaPerson exports carry the 51 ARKit blendshapes and the 15 Oculus visemes,
+split over the `AvatarHead`, `AvatarEyelashes` and `AvatarTeethLower` meshes. To use one:
+
+1. Import the FBX with **Rig ▸ Animation Type: Humanoid**. Check in **Configure** that the humanoid *Head* is the
+   `Head` bone (the parent of `LeftEye`/`RightEye`), not `Neck2`.
+2. Extract the materials and link their textures (MetaPerson FBX files reference their textures by absolute paths
+   on the export server).
+3. On the agent: `Agent Prefab` = the FBX, `Character Type = AvatarSDK`, `Body Animation Controller Type = Mixamo`,
+   and pick the facial expression source:
+   - `Emotion Handler Type = CC4_Animation` with a controller that has a CC4 FacialExpression layer (needs the
+     licensed CC4 facial animation pack): the CC4 clips are retargeted onto the ARKit face at runtime
+     (`CC4ToArKitFacialRetargeter`), giving the same expressions and head motion as on a CC4 character. To keep
+     body actions in the Mixamo package, build the controller with **IVA SDK ▸ Animation ▸ Compose Body + Facial
+     Controller** (body: `JawFixActionController`, face: a CC4 controller's `FacialExpression` layer); it
+     recomposes itself whenever either source changes.
+   - `Emotion Handler Type = FACS` with any Mixamo controller: 25 procedural ARKit expressions that peak and relax.
+
+   Then click **Setup Virtual Agent**.
+
+Setup also wires name-based viseme lip sync on head and lower teeth, blinking on head and eyelashes, and gaze
+that turns the eye bones.
+
+### Telling users what the avatar can do
+
+Users get frustrated when an agent agrees to "wave" or "sit down" and nothing happens. Enable
+**Animation ▸ Embodiment Self-Description ▸ Describe Embodiment Capabilities** on a `GeminiLiveAgent` to append an
+accurate description of the avatar to the system prompt: the facial expressions and body motions its animator
+can really play, gaze, lip sync, locomotion, vision and hard limits. The agent then summarises its abilities
+when asked, and declines unlisted motions while offering the closest available one. Use **Print Capability
+Description to Console** to review the generated text. Independently of this option, only animations whose
+trigger leads to a clip in the animator controller are offered to the model (`Only Offer Playable Animations`).
+
 
 ## Connect to Gemini Live Cloud Service
 

@@ -406,7 +406,257 @@ namespace IVH.Core.Actions{
             new List<string> { "Mixamo", "Negative","GenderNeutral" })
         { }
     }
+    public class Nervous : AgentAction
+    {
+        public Nervous() : base(
+            typeof(Nervous).Name,
+            "An agent shows a nervous reaction, with tense body language and uncertainty.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
 
+    public class JumpingJacks : AgentAction
+    {
+        public JumpingJacks() : base(
+            typeof(JumpingJacks).Name,
+            "An agent performs jumping jacks as an energetic full-body exercise.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class GolfChip : AgentAction
+    {
+        public GolfChip() : base(
+            typeof(GolfChip).Name,
+            "An agent performs a golf chip motion with a controlled, focused swing.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class Burpee : AgentAction
+    {
+        public Burpee() : base(
+            typeof(Burpee).Name,
+            "An agent performs a burpee as a vigorous exercise movement.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class AirSquat : AgentAction
+    {
+        public AirSquat() : base(
+            typeof(AirSquat).Name,
+            "An agent performs an air squat as a grounded exercise motion.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class BaseballPitching : AgentAction
+    {
+        public BaseballPitching() : base(
+            typeof(BaseballPitching).Name,
+            "An agent performs a baseball pitching motion with a throwing gesture.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class BboyHipHopMove : AgentAction
+    {
+        public BboyHipHopMove() : base(
+            typeof(BboyHipHopMove).Name,
+            "An agent performs a b-boy hip hop move with expressive street-dance energy.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class BouncingFightIdle : AgentAction
+    {
+        public BouncingFightIdle() : base(
+            typeof(BouncingFightIdle).Name,
+            "An agent bounces in a fighting idle stance, ready for action.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
+
+    public class CrossJumps : AgentAction
+    {
+        public CrossJumps() : base(
+            typeof(CrossJumps).Name,
+            "An agent performs cross jumps with dynamic athletic movement.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class MmaKick : AgentAction
+    {
+        public MmaKick() : base(
+            typeof(MmaKick).Name,
+            "An agent performs an MMA-style kick with forceful combat energy.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
+
+    public class SambaDancing : AgentAction
+    {
+        public SambaDancing() : base(
+            typeof(SambaDancing).Name,
+            "An agent performs a lively samba dance with rhythmic body movement.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class Texting : AgentAction
+    {
+        public Texting() : base(
+            typeof(Texting).Name,
+            "An agent performs a texting gesture, focused on a mobile device.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class Singing : AgentAction
+    {
+        public Singing() : base(
+            typeof(Singing).Name,
+            "An agent performs a singing gesture with expressive vocal performance.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class PointingForward : AgentAction
+    {
+        public PointingForward() : base(
+            typeof(PointingForward).Name,
+            "An agent points forward to direct attention or indicate a target.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class PainGesture : AgentAction
+    {
+        public PainGesture() : base(
+            typeof(PainGesture).Name,
+            "An agent shows a pain reaction, indicating discomfort or injury.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
+
+    public class FanAir : AgentAction
+    {
+        public FanAir() : base(
+            typeof(FanAir).Name,
+            "An agent fans the air as if trying to cool down or signal relief.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class KneelingDown : AgentAction
+    {
+        public KneelingDown() : base(
+            typeof(KneelingDown).Name,
+            "An agent kneels down into a lowered resting or submissive pose.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class ShakeHeadAnnoyed : AgentAction
+    {
+        public ShakeHeadAnnoyed() : base(
+            typeof(ShakeHeadAnnoyed).Name,
+            "An agent shakes their head to show annoyance or refusal.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
+
+    public class ShakeHeadThoughtful : AgentAction
+    {
+        public ShakeHeadThoughtful() : base(
+            typeof(ShakeHeadThoughtful).Name,
+            "An agent shakes their head in a thoughtful, considering motion.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class ShakeHeadSimpleNo : AgentAction
+    {
+        public ShakeHeadSimpleNo() : base(
+            typeof(ShakeHeadSimpleNo).Name,
+            "An agent gives a simple no by shaking their head.",
+            new List<string> { "Mixamo", "Negative", "GenderNeutral" })
+        { }
+    }
+
+    public class HeadNodSimpleYes : AgentAction
+    {
+        public HeadNodSimpleYes() : base(
+            typeof(HeadNodSimpleYes).Name,
+            "An agent gives a simple yes by nodding their head.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class HeadNodSarcastic : AgentAction
+    {
+        public HeadNodSarcastic() : base(
+            typeof(HeadNodSarcastic).Name,
+            "An agent nods with a sarcastic or ironic meaning.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class Acknowledging : AgentAction
+    {
+        public Acknowledging() : base(
+            typeof(Acknowledging).Name,
+            "An agent acknowledges something with a subtle confirming gesture.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class MotionCalibration : AgentAction
+    {
+        public MotionCalibration() : base(
+            typeof(MotionCalibration).Name,
+            "An agent performs a calibration motion used for setup or alignment.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class Test : AgentAction
+    {
+        public Test() : base(
+            typeof(Test).Name,
+            "A test action used for validating animation playback.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
+
+    public class AngryStareM : AgentAction
+    {
+        public AngryStareM() : base(
+            typeof(AngryStareM).Name,
+            "An agent stares angrily with a male-specific Mixamo animation.",
+            new List<string> { "Mixamo", "Negative", "Male" })
+        { }
+    }
+
+    public class JoyfulJump : AgentAction
+    {
+        public JoyfulJump() : base(
+            typeof(JoyfulJump).Name,
+            "An agent jumps joyfully with energetic celebration.",
+            new List<string> { "Mixamo", "Positive", "GenderNeutral" })
+        { }
+    }
+
+    public class Jump : AgentAction
+    {
+        public Jump() : base(
+            typeof(Jump).Name,
+            "An agent performs a simple jump motion.",
+            new List<string> { "Mixamo", "Neutral", "GenderNeutral" })
+        { }
+    }
     #endregion
 #endif
     // avaliable by default

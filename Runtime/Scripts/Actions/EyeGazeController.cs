@@ -8,15 +8,21 @@ namespace IVH.Core.Actions
     {
         public SkinnedMeshRenderer characterSkinnedMeshRenderer;
 
+        [Tooltip("Other meshes carrying their own copy of the eye-look blendshapes (e.g. Avatar SDK eyelashes). Driven together with the main renderer.")]
+        public List<SkinnedMeshRenderer> additionalRenderers = new List<SkinnedMeshRenderer>();
+
+        // Candidate names per logical shape, tried in order: CC4, Rocketbox, ARKit (Avatar SDK & co.).
+        // "L"/"R" in the logical names = the character's own left/right; ARKit names are anatomical too,
+        // so the left eye looking to the character's left is eyeLookOutLeft.
         [Header("Eye Blendshape Names")]
-        private List<string> eyeLLookLOptions = new List<string> { "Eye_L_Look_L", "blendShape1.AK_13_EyeLookInLeft" };
-        private List<string> eyeRLookLOptions = new List<string> { "Eye_R_Look_L", "blendShape1.AK_14_EyeLookInRight" };
-        private List<string> eyeLLookROptions = new List<string> { "Eye_L_Look_R", "blendShape1.AK_15_EyeLookOutLeft" };
-        private List<string> eyeRLookROptions = new List<string> { "Eye_R_Look_R", "blendShape1.AK_16_EyeLookOutRight" };
-        private List<string> eyeLLookUpOptions = new List<string> { "Eye_L_Look_Up", "blendShape1.AK_17_EyeLookUpLeft" };
-        private List<string> eyeRLookUpOptions = new List<string> { "Eye_R_Look_Up", "blendShape1.AK_18_EyeLookUpRight" };
-        private List<string> eyeLLookDownOptions = new List<string> { "Eye_L_Look_Down", "blendShape1.AK_11_EyeLookDownLeft" };
-        private List<string> eyeRLookDownOptions = new List<string> { "Eye_R_Look_Down", "blendShape1.AK_12_EyeLookDownRight" };
+        private List<string> eyeLLookLOptions = new List<string> { "Eye_L_Look_L", "blendShape1.AK_13_EyeLookInLeft", "eyeLookOutLeft" };
+        private List<string> eyeRLookLOptions = new List<string> { "Eye_R_Look_L", "blendShape1.AK_14_EyeLookInRight", "eyeLookInRight" };
+        private List<string> eyeLLookROptions = new List<string> { "Eye_L_Look_R", "blendShape1.AK_15_EyeLookOutLeft", "eyeLookInLeft" };
+        private List<string> eyeRLookROptions = new List<string> { "Eye_R_Look_R", "blendShape1.AK_16_EyeLookOutRight", "eyeLookOutRight" };
+        private List<string> eyeLLookUpOptions = new List<string> { "Eye_L_Look_Up", "blendShape1.AK_17_EyeLookUpLeft", "eyeLookUpLeft" };
+        private List<string> eyeRLookUpOptions = new List<string> { "Eye_R_Look_Up", "blendShape1.AK_18_EyeLookUpRight", "eyeLookUpRight" };
+        private List<string> eyeLLookDownOptions = new List<string> { "Eye_L_Look_Down", "blendShape1.AK_11_EyeLookDownLeft", "eyeLookDownLeft" };
+        private List<string> eyeRLookDownOptions = new List<string> { "Eye_R_Look_Down", "blendShape1.AK_12_EyeLookDownRight", "eyeLookDownRight" };
 
         [Header("Gaze Targets")]
         public Transform playerTarget;
@@ -33,6 +39,9 @@ namespace IVH.Core.Actions
         [Range(0, 100)] public float eyeBlendshapeStrength = 100f; // Max blendshape weight (0-100)
         public float eyeGazeSpeed = 2f; // Speed of eye movement (lerp factor)
 
+        [Tooltip("How far the gaze wanders in Idle mode. 1 = up to 45 degrees in any direction; lower values keep the agent looking roughly ahead.")]
+        [Range(0f, 1f)] public float idleGazeAmplitude = 1f;
+
         [Header("Head Gaze Settings (IK)")]
         [Range(0, 1)] public float headLookWeight = 0.5f; // How much the head follows the target (0-1)
         public float headGazeSpeed = 4.0f; // Speed of head movement
@@ -40,6 +49,12 @@ namespace IVH.Core.Actions
 
         // Offset for the IK target from the actual gaze point (e.g., to look slightly above or below)
         public Vector3 headLookOffset = Vector3.zero;
+
+        [Header("Eye Bones (rigs with separate eyeball meshes, e.g. Avatar SDK)")]
+        [Tooltip("Rotate the humanoid LeftEye/RightEye bones toward the gaze direction after animation. Needed when the eyeballs are separate meshes skinned to eye bones; eye-look blendshapes then only move the eyelids.")]
+        public bool driveEyeBones = false;
+        [Range(0, 45)] public float maxEyeBoneYaw = 30f;
+        [Range(0, 45)] public float maxEyeBonePitch = 20f;
 
         private Vector3 currentGazeDirection = Vector3.forward; // Current direction eyes are looking
         private Vector3 targetGazeDirection = Vector3.forward; // The desired direction to look towards
@@ -59,9 +74,16 @@ namespace IVH.Core.Actions
 
         public GazeMode currentGazeMode = GazeMode.Idle;
 
-        // Store blendshape indices for performance
-        private int eyeLLookLIndex, eyeRLookLIndex, eyeLLookRIndex, eyeRLookRIndex;
-        private int eyeLLookUpIndex, eyeRLookUpIndex, eyeLLookDownIndex, eyeRLookDownIndex;
+        // Eye-look blendshapes, resolved on the main renderer and every additional renderer.
+        private BlendshapeBinding eyeLLookL, eyeRLookL, eyeLLookR, eyeRLookR;
+        private BlendshapeBinding eyeLLookUp, eyeRLookUp, eyeLLookDown, eyeRLookDown;
+        private bool hasEyeBlendshapes;
+
+        // Eye bones (driveEyeBones)
+        private Transform headBone, leftEyeBone, rightEyeBone;
+        private Quaternion leftEyeRestInHead, rightEyeRestInHead;
+        private Vector3 eyeForwardInHead, eyeUpInHead;
+        private bool eyeBonesReady;
 
         void Awake()
         {
@@ -95,14 +117,18 @@ namespace IVH.Core.Actions
 
             if (characterSkinnedMeshRenderer != null)
             {
-                eyeLLookLIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeLLookLOptions);
-                eyeRLookLIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeRLookLOptions);
-                eyeLLookRIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeLLookROptions);
-                eyeRLookRIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeRLookROptions);
-                eyeLLookUpIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeLLookUpOptions);
-                eyeRLookUpIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeRLookUpOptions);
-                eyeLLookDownIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeLLookDownOptions);
-                eyeRLookDownIndex = GetFirstValidBlendshapeIndex(characterSkinnedMeshRenderer, eyeRLookDownOptions);
+                var renderers = new List<SkinnedMeshRenderer> { characterSkinnedMeshRenderer };
+                if (additionalRenderers != null) renderers.AddRange(additionalRenderers);
+
+                eyeLLookL = FacialBlendshapeRig.Bind(renderers, eyeLLookLOptions.ToArray());
+                eyeRLookL = FacialBlendshapeRig.Bind(renderers, eyeRLookLOptions.ToArray());
+                eyeLLookR = FacialBlendshapeRig.Bind(renderers, eyeLLookROptions.ToArray());
+                eyeRLookR = FacialBlendshapeRig.Bind(renderers, eyeRLookROptions.ToArray());
+                eyeLLookUp = FacialBlendshapeRig.Bind(renderers, eyeLLookUpOptions.ToArray());
+                eyeRLookUp = FacialBlendshapeRig.Bind(renderers, eyeRLookUpOptions.ToArray());
+                eyeLLookDown = FacialBlendshapeRig.Bind(renderers, eyeLLookDownOptions.ToArray());
+                eyeRLookDown = FacialBlendshapeRig.Bind(renderers, eyeRLookDownOptions.ToArray());
+                hasEyeBlendshapes = true;
 
                 CheckBlendshapeIndices();
             }
@@ -118,7 +144,33 @@ namespace IVH.Core.Actions
                 headLookWeight = 0; // Disable head IK if no head bone
             }
 
+            if (driveEyeBones) InitEyeBones();
+
             Debug.Log("EyeGazeController Initialized. Current Gaze Mode: " + currentGazeMode, this);
+        }
+
+        /// <summary>
+        /// Captures the eyes' rest orientation relative to the head. Runs in Start, i.e. before the
+        /// Animator's first evaluation, while the character still stands in its bind pose facing
+        /// <c>transform.forward</c> with the eyes looking straight ahead.
+        /// </summary>
+        private void InitEyeBones()
+        {
+            headBone = animator.GetBoneTransform(HumanBodyBones.Head);
+            leftEyeBone = animator.GetBoneTransform(HumanBodyBones.LeftEye);
+            rightEyeBone = animator.GetBoneTransform(HumanBodyBones.RightEye);
+            if (headBone == null || leftEyeBone == null || rightEyeBone == null)
+            {
+                Debug.LogWarning("EyeGazeController: driveEyeBones is on but the avatar has no Head/LeftEye/RightEye mapping. Eye bones will not move.", this);
+                return;
+            }
+
+            Quaternion invHead = Quaternion.Inverse(headBone.rotation);
+            leftEyeRestInHead = invHead * leftEyeBone.rotation;
+            rightEyeRestInHead = invHead * rightEyeBone.rotation;
+            eyeForwardInHead = invHead * transform.forward;
+            eyeUpInHead = invHead * transform.up;
+            eyeBonesReady = true;
         }
 
         // Update is for calculating the desired gaze direction
@@ -131,7 +183,7 @@ namespace IVH.Core.Actions
                     // Subtle random head movement for idle
                     float noiseX = Mathf.PerlinNoise(Time.time * 0.2f, 0) * 2f - 1f; // -1 to 1
                     float noiseY = Mathf.PerlinNoise(0, Time.time * 0.2f) * 2f - 1f; // -1 to 1
-                    Vector3 idleLookDirLocal = new Vector3(noiseX, noiseY, 1).normalized; // Z is forward
+                    Vector3 idleLookDirLocal = new Vector3(noiseX * idleGazeAmplitude, noiseY * idleGazeAmplitude, 1).normalized; // Z is forward
                     targetGazeDirection = transform.TransformDirection(idleLookDirLocal).normalized; // Convert to world space
                     break;
                 case GazeMode.LookAtPlayer:
@@ -184,7 +236,11 @@ namespace IVH.Core.Actions
         // LateUpdate to apply blendshapes AFTER animation has run
         void LateUpdate()
         {
-            if (characterSkinnedMeshRenderer != null)
+            if (eyeBonesReady)
+            {
+                ApplyGazeToEyeBones(currentGazeDirection);
+            }
+            else if (characterSkinnedMeshRenderer != null)
             {
                 ApplyGazeToBlendshapes(currentGazeDirection);
             }
@@ -194,7 +250,7 @@ namespace IVH.Core.Actions
         {
             if (animator == null || !animator.avatar.isHuman) return;
 
-            animator.SetLookAtWeight(headLookWeight, 0.3f, 1.0f, 0f, 0.5f); 
+            animator.SetLookAtWeight(headLookWeight, 0.3f, 1.0f, 0f, 0.5f);
 
             animator.SetLookAtPosition(currentHeadLookAtPosition);
         }
@@ -203,22 +259,55 @@ namespace IVH.Core.Actions
         // or a specifically placed GameObject for the eye center.
         Vector3 GetEyeCenterPosition()
         {
+            if (eyeBonesReady)
+            {
+                return (leftEyeBone.position + rightEyeBone.position) * 0.5f;
+            }
             // If head bone is available, use its position as a base, otherwise fall back to character root + offset
-            Transform headBone = animator.GetBoneTransform(HumanBodyBones.Head);
-            if (headBone != null)
+            Transform head = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (head != null)
             {
                 // A small offset from the head bone to approximate eye level
-                return headBone.position + headBone.up * 0.1f;
+                return head.position + head.up * 0.1f;
             }
             return transform.position + transform.up * 1.6f; // Fallback
+        }
+
+        /// <summary>
+        /// Turns both eye bones toward <paramref name="gazeDirection"/> relative to the animated head,
+        /// clamped to <see cref="maxEyeBoneYaw"/>/<see cref="maxEyeBonePitch"/>, and lets the eyelid
+        /// blendshapes follow. Runs after the Animator has written the frame's pose.
+        /// </summary>
+        void ApplyGazeToEyeBones(Vector3 gazeDirection)
+        {
+            Quaternion headRotation = headBone.rotation;
+            Quaternion headFrame = headRotation * Quaternion.LookRotation(eyeForwardInHead, eyeUpInHead);
+
+            Vector3 local = Quaternion.Inverse(headFrame) * gazeDirection;
+            float yaw = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+            float pitch = Mathf.Asin(Mathf.Clamp(local.y, -1f, 1f)) * Mathf.Rad2Deg;
+            yaw = Mathf.Clamp(yaw, -maxEyeBoneYaw, maxEyeBoneYaw);
+            pitch = Mathf.Clamp(pitch, -maxEyeBonePitch, maxEyeBonePitch);
+
+            // Positive pitch looks up, i.e. a negative rotation about the frame's X axis.
+            Quaternion offset = Quaternion.Euler(-pitch, yaw, 0f);
+            Quaternion worldOffset = headFrame * offset * Quaternion.Inverse(headFrame);
+
+            leftEyeBone.rotation = worldOffset * (headRotation * leftEyeRestInHead);
+            rightEyeBone.rotation = worldOffset * (headRotation * rightEyeRestInHead);
+
+            if (hasEyeBlendshapes)
+            {
+                ResetAllEyeBlendshapes();
+                ApplyEyeLookWeights(yaw, pitch, maxEyeBoneYaw, maxEyeBonePitch);
+            }
         }
 
         void ApplyGazeToBlendshapes(Vector3 gazeDirection)
         {
             // Ensure characterSkinnedMeshRenderer is valid before proceeding
-            if (characterSkinnedMeshRenderer == null || characterSkinnedMeshRenderer.sharedMesh == null)
+            if (characterSkinnedMeshRenderer == null || characterSkinnedMeshRenderer.sharedMesh == null || !hasEyeBlendshapes)
             {
-                // Debug.LogWarning("Skipping ApplyGazeToBlendshapes: SkinnedMeshRenderer is null or invalid.", this);
                 return;
             }
 
@@ -238,57 +327,55 @@ namespace IVH.Core.Actions
             // Reset all relevant eye blendshapes to 0 before applying new values
             ResetAllEyeBlendshapes();
 
-            // Apply blendshape weights based on calculated angles
+            ApplyEyeLookWeights(horizontalAngle, verticalAngle, maxEyeLookAngle, maxEyeLookAngle);
+        }
+
+        /// <summary>Negative horizontal = character's left, positive vertical = up.</summary>
+        void ApplyEyeLookWeights(float horizontalAngle, float verticalAngle, float maxHorizontal, float maxVertical)
+        {
+            if (maxHorizontal <= 0f || maxVertical <= 0f) return;
+
             // Horizontal (Left/Right)
             if (horizontalAngle < -0.1f) // Looking Left
             {
-                float weight = Mathf.Abs(horizontalAngle) / maxEyeLookAngle * eyeBlendshapeStrength;
-                SetBlendshapeWeightIfValid(eyeLLookLIndex, weight);
-                SetBlendshapeWeightIfValid(eyeRLookLIndex, weight);
+                float weight = Mathf.Abs(horizontalAngle) / maxHorizontal * eyeBlendshapeStrength;
+                eyeLLookL.Set(weight);
+                eyeRLookL.Set(weight);
             }
             else if (horizontalAngle > 0.1f) // Looking Right
             {
-                float weight = horizontalAngle / maxEyeLookAngle * eyeBlendshapeStrength;
-                SetBlendshapeWeightIfValid(eyeLLookRIndex, weight);
-                SetBlendshapeWeightIfValid(eyeRLookRIndex, weight);
+                float weight = horizontalAngle / maxHorizontal * eyeBlendshapeStrength;
+                eyeLLookR.Set(weight);
+                eyeRLookR.Set(weight);
             }
 
             // Vertical (Up/Down)
             if (verticalAngle > 0.1f) // Looking Up
             {
-                float weight = verticalAngle / maxEyeLookAngle * eyeBlendshapeStrength;
-                SetBlendshapeWeightIfValid(eyeLLookUpIndex, weight);
-                SetBlendshapeWeightIfValid(eyeRLookUpIndex, weight);
+                float weight = verticalAngle / maxVertical * eyeBlendshapeStrength;
+                eyeLLookUp.Set(weight);
+                eyeRLookUp.Set(weight);
             }
             else if (verticalAngle < -0.1f) // Looking Down
             {
-                float weight = Mathf.Abs(verticalAngle) / maxEyeLookAngle * eyeBlendshapeStrength;
-                SetBlendshapeWeightIfValid(eyeLLookDownIndex, weight);
-                SetBlendshapeWeightIfValid(eyeRLookDownIndex, weight);
+                float weight = Mathf.Abs(verticalAngle) / maxVertical * eyeBlendshapeStrength;
+                eyeLLookDown.Set(weight);
+                eyeRLookDown.Set(weight);
             }
         }
 
         void ResetAllEyeBlendshapes()
         {
-            if (characterSkinnedMeshRenderer == null || characterSkinnedMeshRenderer.sharedMesh == null) return;
+            if (!hasEyeBlendshapes) return;
 
-            SetBlendshapeWeightIfValid(eyeLLookLIndex, 0);
-            SetBlendshapeWeightIfValid(eyeRLookLIndex, 0);
-            SetBlendshapeWeightIfValid(eyeLLookRIndex, 0);
-            SetBlendshapeWeightIfValid(eyeRLookRIndex, 0);
-            SetBlendshapeWeightIfValid(eyeLLookUpIndex, 0);
-            SetBlendshapeWeightIfValid(eyeRLookUpIndex, 0);
-            SetBlendshapeWeightIfValid(eyeRLookDownIndex, 0);
-            SetBlendshapeWeightIfValid(eyeRLookDownIndex, 0);
-        }
-
-        void SetBlendshapeWeightIfValid(int index, float weight)
-        {
-            if (characterSkinnedMeshRenderer != null && characterSkinnedMeshRenderer.sharedMesh != null &&
-                index != -1 && index < characterSkinnedMeshRenderer.sharedMesh.blendShapeCount)
-            {
-                characterSkinnedMeshRenderer.SetBlendShapeWeight(index, weight);
-            }
+            eyeLLookL.Set(0);
+            eyeRLookL.Set(0);
+            eyeLLookR.Set(0);
+            eyeRLookR.Set(0);
+            eyeLLookUp.Set(0);
+            eyeRLookUp.Set(0);
+            eyeLLookDown.Set(0);
+            eyeRLookDown.Set(0);
         }
 
         void CheckBlendshapeIndices()
@@ -297,14 +384,14 @@ namespace IVH.Core.Actions
             if (characterSkinnedMeshRenderer == null) return;
 
             bool allFound = true;
-            if (eyeLLookLIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeLLookLOptions}' not found on mesh.", this); allFound = false; }
-            if (eyeRLookLIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeRLookLOptions}' not found on mesh.", this); allFound = false; }
-            if (eyeLLookRIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeLLookROptions }' not found on mesh.", this); allFound = false; }
-            if (eyeRLookRIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeRLookROptions }' not found on mesh.", this); allFound = false; }
-            if (eyeLLookUpIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeLLookUpOptions }' not found on mesh.", this); allFound = false; }
-            if (eyeRLookUpIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeRLookUpOptions }' not found on mesh.", this); allFound = false; }
-            if (eyeLLookDownIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeLLookDownOptions }' not found on mesh.", this); allFound = false; }
-            if (eyeRLookDownIndex == -1) { Debug.LogError($"EyeGazeController: Blendshape '{eyeRLookDownOptions }' not found on mesh.", this); allFound = false; }
+            if (!eyeLLookL.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeLLookLOptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeRLookL.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeRLookLOptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeLLookR.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeLLookROptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeRLookR.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeRLookROptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeLLookUp.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeLLookUpOptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeRLookUp.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeRLookUpOptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeLLookDown.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeLLookDownOptions)}' not found on mesh.", this); allFound = false; }
+            if (!eyeRLookDown.IsValid) { Debug.LogError($"EyeGazeController: Blendshape '{string.Join("/", eyeRLookDownOptions)}' not found on mesh.", this); allFound = false; }
 
             if (!allFound)
             {
@@ -333,19 +420,6 @@ namespace IVH.Core.Actions
         {
             agentTarget = target;
             currentGazeMode = GazeMode.LookAtAgent;
-        }
-
-        private int GetFirstValidBlendshapeIndex(SkinnedMeshRenderer renderer, List<string> possibleNames)
-        {
-            foreach (var name in possibleNames)
-            {
-                int index = renderer.sharedMesh.GetBlendShapeIndex(name);
-                if (index != -1)
-                {
-                    return index;
-                }
-            }
-            return -1; // Not found
         }
 
         // public void SetGazeModeLookAtItem()

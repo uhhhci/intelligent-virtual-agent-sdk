@@ -1,6 +1,80 @@
 # Intelligent Virtual Human SDK Core (v3.0.0)
 All notable changes to this package are documented in this file.
 
+## Unreleased
+
+### Avatar SDK (MetaPerson) characters
+- **`CharacterType.AvatarSDK`.** Avatar SDK MetaPerson exports work with `GeminiLiveAgent` (and the other
+  `AgentBase` agents) through **Setup Virtual Agent**, like CC4 and Rocketbox characters, with either emotion
+  handler:
+  - `CC4_Animation` + a controller with a CC4 FacialExpression layer (e.g. `DeafultCC4CharacterAnimatorMale`):
+    the new **`CC4ToArKitFacialRetargeter`** plays the CC4 (Digital Soul) facial clips on the ARKit face. It
+    adds an invisible proxy `CC_Base_Body` mesh that the clips animate unchanged and maps the CC4 Standard
+    blendshapes onto ARKit names every frame (blinks combined with procedural blinking; eye-look and visemes
+    left to gaze and lip sync). Head motion in humanoid clips transfers through the rig. No clip is copied
+    or converted.
+  - `FACS` + any Mixamo controller (e.g. `JawFixActionController`): procedural ARKit expressions (below).
+- **Speech-aware mouth.** While the agent speaks, the retargeter damps the expression's mouth shapes (jaw,
+  press, roll, pucker, stretch, ...) by `mouthDampingWhileSpeaking` (default 0.75) so the visemes own the
+  mouth; smiles, frowns, brows, eyes and cheeks are kept. `OVRLipSyncVisemeBlendshapeDriver.SpeechActivity`
+  exposes the speech level for other face drivers.
+
+### Composing body and facial controllers
+- **`AnimatorControllerComposer`** (*IVA SDK ▸ Animation ▸ Compose Body + Facial Controller*) builds one
+  controller from a body controller (e.g. `JawFixActionController` from the Mixamo package) and the facial layer
+  of another (e.g. the CC4 `FacialExpression` layer), so body actions stay in the Mixamo package and facial
+  expressions in the CC4 package. Clips are referenced, never copied. The composed controller is recomposed
+  automatically (GUID kept) whenever a source controller is imported or saved.
+- The facial layer is split into a face-only layer and a synced `FacialHeadMotion` layer (humanoid head).
+  `AgentBodyMotionController` fades that layer out while a body action plays: otherwise the facial clip's head
+  motion overrides Mixamo nods and head shakes (measured: a 21 degree nod shrank to 3 degrees).
+- Agents' playable-animation caches are refreshed whenever their scene is saved, so player builds pick up
+  controller changes.
+- **Name-based, multi-mesh face rig.** MetaPerson splits the face over `AvatarHead`, `AvatarEyelashes` and
+  `AvatarTeethLower`, each with its own copy of the shapes. New `FacialBlendshapeRig` / `BlendshapeBinding`
+  resolve a blendshape by name (with or without a `deformer.` prefix) on every mesh that carries it.
+- **ARKit expressions (FACS).** `EmotionHandler` renders 25 expressions from ARKit blendshape names on Avatar
+  SDK rigs: `neutral, happy, excited, amused, proud, relieved, sympathetic, embarrassed, attentive, curious,
+  impressed, thinking, skeptical, confused, surprised, concerned, sad, disappointed, bored, frustrated,
+  determined, angry, contempt, disgusted, scared`. Expressions peak for 1-4 s and then relax to a subtle
+  sustained version (`relaxDurationSeconds`); mouth-opening and eye-widening shapes always fade out, so the
+  jaw never stays open. CC4/DIDIMO and Rocketbox keep their index tables and behaviour unchanged.
+- **Lip sync.** New `OVRLipSyncVisemeBlendshapeDriver` drives the 15 Oculus visemes by name on the head and
+  lower teeth. It never writes unresolved indices, so the identity morphs (`body_shape`, `face_modifications`)
+  stay untouched.
+- **Blinking** drives `eyeBlinkLeft/Right` on the head and the eyelashes (`CharacterBlinkBehavior.additionalRenderers`).
+- **Eye gaze.** `EyeGazeController.driveEyeBones` turns the humanoid `LeftEye`/`RightEye` bones toward the gaze
+  target (the eyeballs are separate meshes), with ARKit `eyeLook*` eyelid shapes following. New
+  `idleGazeAmplitude` (default 1 = unchanged; 0.35 on Avatar SDK) keeps the idle wander from tilting the head
+  toward the ceiling. `CharacterBlinkBehavior.CurrentWeight` exposes the procedural blink for other face drivers.
+- Locomotion (`move_agent`) is available for Avatar SDK characters, `AgentBase` adds an `AudioSource` to model
+  files that have none, and the vision camera finds the `LeftEye` bone.
+
+### Embodiment self-description
+- **`GeminiLiveAgent.describeEmbodimentCapabilities`** (opt-in) appends an accurate description of the
+  avatar to the system prompt: the facial expressions and body motions it can perform, gaze, lip sync,
+  locomotion, vision, whether the user can interrupt by voice, and hard limits, plus rules for talking about
+  them (summarise on request, decline unlisted motions and offer the closest alternative, never narrate
+  actions that were not triggered). `mentionCapabilitiesInGreeting` adds a one-line invitation to the greeting;
+  `embodimentNotes` adds persona-specific facts. Preview it with *Animation ▸ Print Capability Description*.
+- **Only playable animations are offered** (`onlyOfferPlayableAnimations`, default on). The new
+  `AnimatorCapabilityInspector` keeps an action only when its trigger leads to a state with a clip, so action
+  classes the controller does not implement (or misspelled triggers) are no longer offered to the model and
+  then silently ignored. In player builds the list captured at setup (`RefreshPlayableAnimationCache`) is used.
+  `hiddenAnimationTriggers` (default `MotionCalibration`, `Test`) are never offered.
+- CC4 facial clips are offered by name only: their descriptions mention arm and body movement that the
+  face-mask clips do not perform.
+- **Trigger aliases.** `AnimationTriggerAliases` resolves known spelling differences between action classes and
+  shipped controllers (e.g. `HelloWithRaiseHand` → `GreetWithRaiseHand`, `HelplesslySighed` → `HelplessSighed`,
+  `Irritated` → `Iratated`). The class name is always tried first. This makes the hello wave and five more
+  CC4 facial expressions reachable on the CC4 controllers.
+- Offered action/emotion names are the class type names, which is what triggering matches (`TouchingSmile`
+  carried the copy-pasted display name `Satisfied`).
+
+### Fixes
+- `EyeGazeController.ResetAllEyeBlendshapes` reset the right eye's look-down shape twice and never the left one,
+  so the left eye could stay partly lowered.
+
 ## 3.0.0
 First 3.x public release, consolidating everything developed since `v2.3.2`. The headline feature is
 **document grounding**: an agent can now answer from a curated corpus you supply instead of from

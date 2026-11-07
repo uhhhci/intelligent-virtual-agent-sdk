@@ -165,6 +165,14 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 DrawByName("bodyAnimationControllerType");
                 DrawByName("animatorController");
                 DrawByName("emotionHandlerType");
+                if (agent.characterType == CharacterType.AvatarSDK)
+                {
+                    EditorGUILayout.HelpBox(
+                        agent.emotionHandlerType == EmotionHandlerType.FACS
+                            ? "Avatar SDK (MetaPerson) + FACS: 25 procedural ARKit expressions that peak and relax, name-based visemes on head + lower teeth, eyelash-synced blinking and eye-bone gaze. Works with any Mixamo controller (e.g. JawFixActionController)."
+                            : "Avatar SDK (MetaPerson) + CC4_Animation: the CC4 facial clips of the controller's FacialExpression layer (e.g. DeafultCC4CharacterAnimatorMale) are retargeted onto the ARKit face at runtime by CC4ToArKitFacialRetargeter.",
+                        MessageType.None);
+                }
                 DrawByName("descriptionMode");
                 DrawByName("bodyActionFilter");
                 DrawByName("facialExpressionFilter");
@@ -364,13 +372,37 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
         private void DrawAnimationTab()
         {
             EditorGUILayout.LabelField("Locomotion (Experimental)", EditorStyles.boldLabel);
-            if (characterTypeProp.enumNames[characterTypeProp.enumValueIndex] == "CC4OrDIDIMO" && isNavMeshInScene)
+            if (GeminiLiveAgent.SupportsLocomotion((CharacterType)characterTypeProp.enumValueIndex) && isNavMeshInScene)
             {
                 EditorGUILayout.PropertyField(enableLocomotionProp);
             }
             else
             {
-                EditorGUILayout.HelpBox("Locomotion needs a CC4/DIDIMO character + a NavMesh in the scene.", MessageType.None);
+                EditorGUILayout.HelpBox("Locomotion needs a CC4/DIDIMO or Avatar SDK character + a NavMesh in the scene.", MessageType.None);
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Embodiment Self-Description", EditorStyles.boldLabel);
+            DrawByName("describeEmbodimentCapabilities");
+            if (serializedObject.FindProperty("describeEmbodimentCapabilities").boolValue)
+            {
+                EditorGUI.indentLevel++;
+                DrawByName("mentionCapabilitiesInGreeting");
+                DrawByName("embodimentNotes");
+                EditorGUI.indentLevel--;
+            }
+            DrawByName("onlyOfferPlayableAnimations");
+            DrawByName("hiddenAnimationTriggers");
+            EditorGUILayout.HelpBox(
+                "Tells the agent exactly which facial expressions and body motions its avatar can perform " +
+                "(read from the animator controller) and what it cannot do, so it describes itself truthfully " +
+                "and declines impossible requests instead of pretending.", MessageType.None);
+
+            if (GUILayout.Button("Print Capability Description to Console", GUILayout.Height(22)))
+            {
+                serializedObject.ApplyModifiedProperties();
+                agent.RefreshPlayableAnimationCache();
+                Debug.Log("[IVA] Embodiment description for '" + agent.agentName + "':\n" + agent.GetEmbodimentDescription());
             }
         }
 

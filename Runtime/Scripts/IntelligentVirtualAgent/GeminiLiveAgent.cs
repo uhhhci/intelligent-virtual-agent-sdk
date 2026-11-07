@@ -44,6 +44,35 @@ namespace IVH.Core.IntelligentVirtualAgent
         [Tooltip("Add guidance to answer directly and substantively in first person, and not end every reply with a clarifying question. Recommended for grounded personas.")]
         public bool proactiveAnswerStyle = true;
 
+        [Header("Embodiment Self-Description")]
+        /// <summary>
+        /// Appends an accurate description of the avatar's abilities to the system prompt: the facial
+        /// expressions and body motions it can really perform (read from the animator controller), gaze,
+        /// lip sync, locomotion, vision and hard limits, plus guidance on how to explain them. Prevents
+        /// the agent from promising gestures it cannot do, which surprises and frustrates users.
+        /// </summary>
+        [Tooltip("Tell the agent precisely which facial expressions and body motions its avatar can perform, and what it cannot do, so it describes itself truthfully and declines impossible requests.")]
+        public bool describeEmbodimentCapabilities = false;
+
+        /// <summary>When <see cref="describeEmbodimentCapabilities"/> is on, the first greeting invites the user to ask about the avatar's abilities.</summary>
+        [Tooltip("In its first greeting, the agent briefly invites the user to ask what it can and cannot do.")]
+        public bool mentionCapabilitiesInGreeting = true;
+
+        /// <summary>Persona-specific facts about the avatar appended to the capability description (e.g. how the likeness was made).</summary>
+        [Tooltip("Extra facts about the avatar the agent may share, e.g. how its 3D likeness was created.")]
+        [TextArea(2, 6)] public string embodimentNotes = "";
+
+        /// <summary>
+        /// Only offer body motions and facial clips whose trigger reaches a state with a clip in the
+        /// animator controller. Action classes the controller does not implement are hidden from the model.
+        /// </summary>
+        [Tooltip("Only offer the model animations the animator controller can actually play.")]
+        public bool onlyOfferPlayableAnimations = true;
+
+        /// <summary>Animation triggers never offered to the model (setup or debug clips).</summary>
+        [Tooltip("Animation triggers never offered to the model, e.g. calibration or test clips.")]
+        public List<string> hiddenAnimationTriggers = new List<string> { "MotionCalibration", "Test" };
+
         [Header("Audio Input")]
         /// <summary>Microphone device name. Leave blank to auto-select the first available device.</summary>
         public string microphoneDeviceName;
@@ -235,7 +264,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
             else
             {
-                if (characterType == CharacterType.CC4OrDIDIMO && enableLocomotion==true)
+                if (SupportsLocomotion(characterType) && enableLocomotion==true)
                 {
                     _ = _realtimeWrapper.ConnectAsync(finalPrompt, voiceName, true);
                 }
@@ -636,32 +665,95 @@ namespace IVH.Core.IntelligentVirtualAgent
                 sb.AppendLine("- If background knowledge or a knowledge-base search gives you the answer, share it confidently instead of deflecting. If you genuinely do not know, say so briefly and move on.");
             }
 
+            HashSet<string> playable = onlyOfferPlayableAnimations ? GetPlayableAnimationTriggers() : null;
+
             if (actionController != null)
             {
-                var actions = actionController.GetSimpleActionNameFiltered(bodyActionFilter, gender, bodyAnimationControllerType);
+                // Type names: that is what PerformAction matches (a few classes carry a copy-pasted Name).
+                var actions = GetOfferedBodyActions(playable).Select(a => a.GetType().Name).ToList();
                 sb.AppendLine("Allowed 'action' values: " + string.Join(", ", CleanList(actions)));
             }
-            if(emotionHandlerType == EmotionHandlerType.CC4_Animation){
-                if (faceAnimator != null)
-                {
-                    var emotions = faceAnimator.GetSimpleFacialExpressionNameFiltered(facialExpressionFilter);
-                    sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
-                }
-            }
-            else
+            if (faceAnimator != null || emotionHandler != null)
             {
-                if (faceAnimator != null)
-                {
-                    var emotions = faceAnimator.GetSimpleDidimoActionName();
-                    sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
-                }
+                var emotions = GetOfferedFacialExpressions(playable).Select(kv => kv.Key).ToList();
+                sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(emotions)));
             }
             if (eyeGazeController != null)
             {
                 sb.AppendLine("Allowed 'gaze' values: 'User', 'Idle'");
             }
-            
+
+            if (describeEmbodimentCapabilities)
+            {
+                sb.AppendLine();
+                sb.Append(AgentCapabilityDescriber.BuildPrompt(BuildEmbodimentCapabilities(playable)));
+            }
+
             return sb.ToString();
+        }
+
+        /// <summary>Body actions offered to the model: filtered by sentiment/gender/source, playable triggers and <see cref="hiddenAnimationTriggers"/>.</summary>
+        private List<IVH.Core.Actions.AgentAction> GetOfferedBodyActions(HashSet<string> playable)
+        {
+            if (actionController == null) return new List<IVH.Core.Actions.AgentAction>();
+            return actionController.GetActionsFiltered(bodyActionFilter, gender, bodyAnimationControllerType, playable, hiddenAnimationTriggers);
+        }
+
+        /// <summary>Facial expressions offered to the model as (name, description).</summary>
+        private List<KeyValuePair<string, string>> GetOfferedFacialExpressions(HashSet<string> playable)
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            if (emotionHandlerType == EmotionHandlerType.CC4_Animation)
+            {
+                if (faceAnimator == null) return result;
+                foreach (var clip in faceAnimator.GetFacialAnimationsFiltered(facialExpressionFilter, playable))
+                {
+                    if (hiddenAnimationTriggers != null && hiddenAnimationTriggers.Contains(clip.GetType().Name)) continue;
+                    // Clip descriptions in AgentFacialAnimationTypes mention arm/body movement the face-only
+                    // clips do not perform, so only the name is offered.
+                    result.Add(new KeyValuePair<string, string>(clip.GetType().Name, null));
+                }
+            }
+            else
+            {
+                foreach (string emotion in GetFacsEmotionNames())
+                    result.Add(new KeyValuePair<string, string>(emotion, EmotionHandler.DescribeEmotion(emotion)));
+            }
+            return result;
+        }
+
+        /// <summary>Collects what the avatar can actually do right now (see <see cref="AgentCapabilityDescriber"/>).</summary>
+        public EmbodimentCapabilities BuildEmbodimentCapabilities(HashSet<string> playable = null)
+        {
+            if (playable == null && onlyOfferPlayableAnimations) playable = GetPlayableAnimationTriggers();
+
+            var caps = new EmbodimentCapabilities
+            {
+                characterType = characterType,
+                emotionHandlerType = emotionHandlerType,
+                bodyAnimationType = bodyAnimationControllerType,
+                facialExpressionsRelax = characterType == CharacterType.AvatarSDK && emotionHandlerType == EmotionHandlerType.FACS,
+                hasLipSync = agentInstance != null && agentInstance.GetComponent<OVRLipSyncContextBase>() != null,
+                hasBlinking = agentInstance != null && agentInstance.GetComponent<IVH.Core.Actions.CharacterBlinkBehavior>() != null,
+                hasGaze = eyeGazeController != null,
+                canWalk = enableLocomotion && agentLocomotion != null && SupportsLocomotion(characterType),
+                visionEnabled = vision,
+                visionSource = targetCameraType,
+                visionIntervalSeconds = visionUpdateFrequency,
+                userCanInterruptByVoice = enableVocalInterruption || !muteMicWhileTalking,
+                additionalNotes = embodimentNotes,
+                mentionInGreeting = mentionCapabilitiesInGreeting,
+            };
+            foreach (var action in GetOfferedBodyActions(playable))
+                caps.bodyMotions.Add(new KeyValuePair<string, string>(action.GetType().Name, action.Description));
+            caps.facialExpressions.AddRange(GetOfferedFacialExpressions(playable));
+            return caps;
+        }
+
+        /// <summary>The capability section that <see cref="describeEmbodimentCapabilities"/> adds to the prompt. Useful for previews.</summary>
+        public string GetEmbodimentDescription()
+        {
+            return AgentCapabilityDescriber.BuildPrompt(BuildEmbodimentCapabilities());
         }
         /// <summary>Returns true once Gemini has acknowledged the setup frame and is ready to receive audio/video.</summary>
         public bool IsSessionReady()
@@ -703,11 +795,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             if(!string.IsNullOrEmpty(gaze) && gaze != "none") HandleGaze(gaze);
         }
 
+        /// <summary>Character rigs with a humanoid skeleton that the NavMesh locomotion clips support.</summary>
+        public static bool SupportsLocomotion(CharacterType type)
+        {
+            return type == CharacterType.CC4OrDIDIMO || type == CharacterType.AvatarSDK;
+        }
+
         public override void SetupVirtualAgent()
         {
 
             if (agentPrefab != null && agentInstance == null)
             {
+                EnsureCharacterTypeCompatibility();
                 agentInstance = Instantiate(agentPrefab, transform.position, transform.rotation);
                 agentInstance.name = agentName;
                 agentInstance.transform.SetParent(transform);
@@ -719,12 +818,14 @@ namespace IVH.Core.IntelligentVirtualAgent
                 SetupEMotionHandler();
                 SetupAgentVisionCamera();
                 SetupSimpleEyeBlink();
+                SetupFacialRetargeting();
                 SetupEyeGazeController();
                 SetupAudio();
-                if (characterType == CharacterType.CC4OrDIDIMO)
+                if (SupportsLocomotion(characterType))
                 {
                     SetupAgentLocomotion();
                 }
+                RefreshPlayableAnimationCache();
                 _realtimeWrapper = GetComponent<GeminiRealtimeWrapper>();
                 if (_realtimeWrapper == null) _realtimeWrapper = gameObject.AddComponent<GeminiRealtimeWrapper>();
 

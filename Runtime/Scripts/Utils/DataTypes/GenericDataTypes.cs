@@ -18,7 +18,14 @@ public enum AIWakeupMode
 public enum CharacterType
 {
     CC4OrDIDIMO,
-    Rocketbox
+    Rocketbox,
+    /// <summary>
+    /// Avatar SDK MetaPerson characters (avatarsdk.com). The face carries the 51 ARKit blendshapes
+    /// ("mobile_51") and the 15 Oculus visemes ("visemes_15"), split across the AvatarHead,
+    /// AvatarEyelashes and AvatarTeethLower meshes; the eyeballs are turned by the LeftEye/RightEye bones.
+    /// Use with <see cref="EmotionHandlerType.FACS"/> and Mixamo body animations.
+    /// </summary>
+    AvatarSDK
 }
 public enum BodyAnimationControllerType
 {
