@@ -98,6 +98,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private readonly Queue<Action> _main = new Queue<Action>();
         private readonly object _mainLock = new object();
         private bool _userDisconnect;
+        private int _disconnectsLogged;
         private bool _imageWarned;
         private string _requestedVoice;
         private int _audioSubscribers => OnAudioReceived == null ? 0 : OnAudioReceived.GetInvocationList().Length;
@@ -170,14 +171,18 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 ActiveVoice = c.Config.voice;
                 Post(() =>
                 {
-                    if (verboseLogging) Debug.Log($"[LocalRealtimeWrapper] session {c.SessionId}, voice {ActiveVoice}, out {c.OutputSampleRate} Hz");
+                    _disconnectsLogged = 0;
+                Debug.Log($"[LocalRealtimeWrapper] session {c.SessionId} on {serverUrl}: voice {ActiveVoice}, output {c.OutputSampleRate} Hz");
                     OnSetupComplete?.Invoke();
                     OnConnected?.Invoke();
                 });
             };
             c.Disconnected += (reason, detail) => Post(() =>
             {
-                if (verboseLogging) Debug.Log($"[LocalRealtimeWrapper] disconnected: {reason} {detail}");
+                // The first failure is always logged with its cause; repeats only when verbose, so a server
+                // that is down does not flood the Console while the client retries.
+                if (verboseLogging || _disconnectsLogged++ == 0)
+                    Debug.LogWarning($"[LocalRealtimeWrapper] {serverUrl}: {reason} {detail} (retrying: {autoReconnect && reason != LocalVoiceDisconnect.UserRequested && reason != LocalVoiceDisconnect.Refused})");
                 OnDisconnected?.Invoke(Map(reason));
                 if (reason == LocalVoiceDisconnect.Refused)
                     OnFatalError?.Invoke(new ServiceConnectionException($"The local voice server refused the session: {detail}"));
