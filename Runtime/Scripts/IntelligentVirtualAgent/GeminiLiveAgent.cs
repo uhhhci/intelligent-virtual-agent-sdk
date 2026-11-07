@@ -25,8 +25,13 @@ namespace IVH.Core.IntelligentVirtualAgent
     /// For modular STT/LLM/TTS pipelines, use <see cref="ConversationalAgent"/>.
     /// </remarks>
     [RequireComponent(typeof(GeminiRealtimeWrapper))]
-    public class GeminiLiveAgent : AgentBase, IGeminiAgent
+    public class GeminiLiveAgent : AgentBase, IGeminiAgent, ILiveAgentControls
     {
+        string ILiveAgentControls.MicrophoneDeviceName { get => microphoneDeviceName; set => microphoneDeviceName = value; }
+        bool ILiveAgentControls.EnableVocalInterruption { get => enableVocalInterruption; set => enableVocalInterruption = value; }
+        bool ILiveAgentControls.MuteMicWhileTalking { get => muteMicWhileTalking; set => muteMicWhileTalking = value; }
+        float ILiveAgentControls.VisionUpdateFrequency { get => visionUpdateFrequency; set => visionUpdateFrequency = value; }
+
         [Header("Gemini Configuration")]
         /// <summary>Gemini TTS voice name (e.g. "Puck", "Charon", "Kore", "Fenrir", "Aoede").</summary>
         public string voiceName = "Puck";

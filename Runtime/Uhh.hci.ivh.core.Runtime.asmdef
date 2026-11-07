@@ -6,7 +6,8 @@
         "GUID:bf7126905a54c9746b9c475d69312766",
         "GUID:05de2cdf0bba8584abae6189ffeda018",
         "com.whisper.unity",
-        "com.gpt4all.unity"
+        "com.gpt4all.unity",
+        "Uhh.hci.ivh.core.LocalVoice.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

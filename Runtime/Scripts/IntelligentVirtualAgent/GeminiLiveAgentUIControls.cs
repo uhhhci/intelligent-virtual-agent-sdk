@@ -21,7 +21,11 @@ namespace IVH.Core.IntelligentVirtualAgent
     {
         [Header("Target Agent")]
         /// <summary>Agent the controls drive. Falls back to <c>GetComponentInParent</c> if left blank.</summary>
-        public GeminiLiveAgent agent;
+        /// <remarks>Any agent implementing <see cref="ILiveAgentControls"/>: <see cref="GeminiLiveAgent"/> or
+        /// <see cref="LocalLiveAgent"/>. Typed as <see cref="AgentBase"/> so existing scene references keep working.</remarks>
+        public AgentBase agent;
+
+        private ILiveAgentControls Live => agent as ILiveAgentControls;
 
         [Header("Buttons")]
         /// <summary>Calls <see cref="GeminiLiveAgent.Connect"/>. Use to recover from a stuck session.</summary>
@@ -126,10 +130,10 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void Awake()
         {
-            if (agent == null) agent = GetComponentInParent<GeminiLiveAgent>();
-            if (agent == null)
+            if (agent == null) agent = FindLiveAgentInParents();
+            if (Live == null)
             {
-                Debug.LogWarning($"{nameof(GeminiLiveAgentUIControls)} on '{name}' has no agent reference and no GeminiLiveAgent in its parents — buttons will no-op.");
+                Debug.LogWarning($"{nameof(GeminiLiveAgentUIControls)} on '{name}' has no agent reference and no live agent (GeminiLiveAgent, LocalLiveAgent) in its parents — buttons will no-op.");
                 return;
             }
 
@@ -176,6 +180,13 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (cameraPreviewImage != null) cameraPreviewImage.gameObject.SetActive(false);
         }
 
+        private AgentBase FindLiveAgentInParents()
+        {
+            foreach (var a in GetComponentsInParent<AgentBase>(true))
+                if (a is ILiveAgentControls) return a;
+            return null;
+        }
+
         private void OnDestroy()
         {
             if (reconnectButton != null) reconnectButton.onClick.RemoveListener(HandleReconnectClicked);
@@ -196,10 +207,10 @@ namespace IVH.Core.IntelligentVirtualAgent
             StopAgentCameraPreview();
         }
 
-        private void HandleReconnectClicked() => agent.Connect();
-        private void HandleStartVisionClicked() => agent.ToggleVisionStream(true);
-        private void HandleStopVisionClicked() => agent.ToggleVisionStream(false);
-        private void HandleForceInterruptClicked() => agent.RequestInterrupt("ui_button");
+        private void HandleReconnectClicked() => Live.Connect();
+        private void HandleStartVisionClicked() => Live.ToggleVisionStream(true);
+        private void HandleStopVisionClicked() => Live.ToggleVisionStream(false);
+        private void HandleForceInterruptClicked() => Live.RequestInterrupt("ui_button");
 
         private void HandleSettingsToggleClicked()
         {
@@ -251,7 +262,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             cameraPreviewImage.texture = wct;
             if (wct == null)
             {
-                agent.AppendLog("<color=#E0A858>System: No webcam detected for preview.</color>");
+                Live.AppendLog("<color=#E0A858>System: No webcam detected for preview.</color>");
             }
         }
 
@@ -332,11 +343,11 @@ namespace IVH.Core.IntelligentVirtualAgent
             microphoneDropdown.interactable = true;
             microphoneDropdown.AddOptions(new List<string>(devices));
 
-            int active = System.Array.IndexOf(devices, agent.microphoneDeviceName);
+            int active = System.Array.IndexOf(devices, Live.MicrophoneDeviceName);
             if (active < 0) active = 0;
             microphoneDropdown.SetValueWithoutNotify(active);
             // Sync the agent in case the previously-saved name doesn't match any current device.
-            agent.microphoneDeviceName = devices[active];
+            Live.MicrophoneDeviceName = devices[active];
 
             microphoneDropdown.onValueChanged.AddListener(HandleMicrophoneSelected);
         }
@@ -345,8 +356,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         {
             string[] devices = Microphone.devices;
             if (index < 0 || index >= devices.Length) return;
-            agent.microphoneDeviceName = devices[index];
-            agent.AppendLog($"<color=#9BB4FF>System: Microphone set to {devices[index]}. Reconnect to apply.</color>");
+            Live.MicrophoneDeviceName = devices[index];
+            Live.AppendLog($"<color=#9BB4FF>System: Microphone set to {devices[index]}. Reconnect to apply.</color>");
         }
 
         private void PopulateCameraSourceDropdown()
@@ -368,7 +379,7 @@ namespace IVH.Core.IntelligentVirtualAgent
                 agent.EnsureWebCamReady(string.IsNullOrEmpty(agent.selectedWebCamName) ? null : agent.selectedWebCamName);
             }
 
-            agent.AppendLog($"<color=#9BB4FF>System: Camera source set to {newSource}.</color>");
+            Live.AppendLog($"<color=#9BB4FF>System: Camera source set to {newSource}.</color>");
 
             // If the preview is open, refresh it so the user immediately sees the new source.
             if (cameraPreviewToggle != null && cameraPreviewToggle.isOn)
@@ -384,13 +395,13 @@ namespace IVH.Core.IntelligentVirtualAgent
             // / max can't read field attributes at runtime without reflection-heavy plumbing.
             visionFrequencySlider.minValue = 0.2f;
             visionFrequencySlider.maxValue = 5f;
-            visionFrequencySlider.SetValueWithoutNotify(agent.visionUpdateFrequency);
-            UpdateVisionFrequencyLabel(agent.visionUpdateFrequency);
+            visionFrequencySlider.SetValueWithoutNotify(Live.VisionUpdateFrequency);
+            UpdateVisionFrequencyLabel(Live.VisionUpdateFrequency);
         }
 
         private void HandleVisionFrequencyChanged(float value)
         {
-            agent.visionUpdateFrequency = value;
+            Live.VisionUpdateFrequency = value;
             UpdateVisionFrequencyLabel(value);
         }
 
@@ -404,12 +415,12 @@ namespace IVH.Core.IntelligentVirtualAgent
         private void SyncInterruptionToggleUi()
         {
             if (enableInterruptionToggle == null) return;
-            enableInterruptionToggle.SetIsOnWithoutNotify(agent.enableVocalInterruption);
+            enableInterruptionToggle.SetIsOnWithoutNotify(Live.EnableVocalInterruption);
         }
 
         private void HandleInterruptionToggleChanged(bool isOn)
         {
-            agent.enableVocalInterruption = isOn;
+            Live.EnableVocalInterruption = isOn;
         }
 
         private void SyncVisionToggleUi()
@@ -423,18 +434,18 @@ namespace IVH.Core.IntelligentVirtualAgent
             // Route through ToggleVisionStream so the auto-capture coroutine is started / stopped
             // alongside the bool flag — writing agent.vision directly leaves the coroutine state
             // inconsistent.
-            agent.ToggleVisionStream(isOn);
+            Live.ToggleVisionStream(isOn);
         }
 
         private void SyncPreventEchoToggleUi()
         {
             if (preventEchoToggle == null) return;
-            preventEchoToggle.SetIsOnWithoutNotify(agent.muteMicWhileTalking);
+            preventEchoToggle.SetIsOnWithoutNotify(Live.MuteMicWhileTalking);
         }
 
         private void HandlePreventEchoToggleChanged(bool isOn)
         {
-            agent.muteMicWhileTalking = isOn;
+            Live.MuteMicWhileTalking = isOn;
         }
     }
 }
