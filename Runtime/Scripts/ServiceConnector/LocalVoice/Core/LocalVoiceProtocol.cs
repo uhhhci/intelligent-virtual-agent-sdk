@@ -75,6 +75,11 @@ namespace IVH.Core.ServiceConnector.LocalVoice
         public string language = "en";
         /// <summary>Speaking-style hints of a cloned voice that carries them (v1.4). Null leaves the server default.</summary>
         public bool? speakingStyle;
+        /// <summary>
+        /// The tool the model invokes by writing a <c>[key=value; ...]</c> tag in its reply (v1.6); the server
+        /// strips the tag from speech and text and sends a tool call. Null leaves it off.
+        /// </summary>
+        public string inlineTool;
         /// <summary>Pause (ms) after which the server ends the user's turn. Null leaves the server default.</summary>
         public int? pauseMs;
         /// <summary><c>server</c>, <c>client</c> or <c>off</c>. Null leaves the server default.</summary>
@@ -101,6 +106,7 @@ namespace IVH.Core.ServiceConnector.LocalVoice
             if (systemPrompt != null) msg["system_prompt"] = systemPrompt;
             if (!string.IsNullOrEmpty(language)) msg["language"] = language;
             if (speakingStyle.HasValue) msg["speaking_style"] = speakingStyle.Value;
+            if (inlineTool != null) msg["inline_tool"] = inlineTool;
             if (tools != null && tools.Count > 0) msg["tools"] = tools;
             if (pauseMs.HasValue) msg["eou"] = new JObject { ["max_silence_ms"] = pauseMs.Value };
             if (!string.IsNullOrEmpty(bargeIn) || speculative.HasValue)

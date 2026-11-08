@@ -93,6 +93,13 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// <summary>Output rate the server sends at (the audio device's rate).</summary>
         public int OutputSampleRate { get; private set; } = 24000;
         public int InputSampleRate { get; set; } = 16000;
+        /// <summary>
+        /// True: the model sets the avatar's state by writing an <c>[emotion=...; action=...; gaze=...]</c> tag
+        /// instead of calling <c>update_avatar_state</c> (PROTOCOL v1.6 <c>inline_tool</c>); the tool is then not
+        /// declared, and its calls still arrive on <see cref="OnCommandReceived"/>. Set before connecting; the
+        /// system prompt must ask for the tag (<c>LocalLiveAgent</c> does).
+        /// </summary>
+        public bool AvatarStateByTag { get; set; }
 
         private LocalVoiceClient _client;
         private readonly Queue<Action> _main = new Queue<Action>();
@@ -122,11 +129,11 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// <c>update_avatar_state</c> (plus <c>move_agent</c> when <paramref name="hasLocomotion"/>) is declared.
         /// </summary>
         public Task ConnectAsync(string systemInstruction, string voiceName, bool hasLocomotion = false) =>
-            ConnectInternalAsync(systemInstruction, voiceName, BuildTools(hasLocomotion, null));
+            ConnectInternalAsync(systemInstruction, voiceName, BuildTools(!AvatarStateByTag, hasLocomotion, null));
 
         /// <summary>As <see cref="ConnectAsync"/>, with the caller's tool declarations (Gemini schema) added.</summary>
         public Task ConnectWithDynamicToolsAsync(string systemInstruction, string voiceName, JArray dynamicToolsDeclaration) =>
-            ConnectInternalAsync(systemInstruction, voiceName, BuildTools(false, dynamicToolsDeclaration));
+            ConnectInternalAsync(systemInstruction, voiceName, BuildTools(!AvatarStateByTag, false, dynamicToolsDeclaration));
 
         private async Task ConnectInternalAsync(string systemInstruction, string voiceName, JArray tools)
         {
@@ -142,6 +149,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 systemPrompt = systemInstruction,
                 language = language,
                 speakingStyle = speakingStyle,
+                inlineTool = AvatarStateByTag ? "update_avatar_state" : null,
                 pauseMs = endOfTurnPauseMs,
                 speculative = speculativeGeneration,
                 // The agent detects a user speaking over it and cancels (as GeminiLiveAgent does), and it
@@ -243,7 +251,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             if (name == "update_avatar_state")
             {
                 OnCommandReceived?.Invoke((string)args["action"] ?? "", (string)args["emotion"] ?? "", (string)args["gaze"] ?? "");
-                _ = _client.SendToolResultAsync(callId, new JObject { ["status"] = "ok" });
+                // A tag's call (inline-...) expects no result: the history holds the tag as text.
+                if (callId == null || !callId.StartsWith("inline-", StringComparison.Ordinal))
+                    _ = _client.SendToolResultAsync(callId, new JObject { ["status"] = "ok" });
             }
             else if (name == "move_agent")
             {
@@ -257,17 +267,16 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         }
 
         /// <summary>Gemini's function declarations, translated to the server's tool schema (name, description, parameters).</summary>
-        private static JArray BuildTools(bool hasLocomotion, JArray dynamicTools)
+        private static JArray BuildTools(bool avatarStateTool, bool hasLocomotion, JArray dynamicTools)
         {
-            var tools = new JArray
-            {
-                new JObject
+            var tools = new JArray();
+            if (avatarStateTool)
+                tools.Add(new JObject
                 {
                     ["name"] = "update_avatar_state",
                     ["description"] = "Change the avatar's facial expression, body action or gaze. Call it together with your spoken reply, never instead of it.",
                     ["parameters"] = JObject.Parse("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"description\":\"Body animation name, or 'none'\"},\"emotion\":{\"type\":\"string\",\"description\":\"Facial expression name, or 'none'\"},\"gaze\":{\"type\":\"string\",\"description\":\"'User' or 'Idle'\"}},\"required\":[\"action\",\"emotion\",\"gaze\"]}"),
-                },
-            };
+                });
             if (hasLocomotion)
             {
                 tools.Add(new JObject

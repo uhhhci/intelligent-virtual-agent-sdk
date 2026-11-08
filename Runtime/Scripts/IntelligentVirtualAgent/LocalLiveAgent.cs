@@ -65,6 +65,15 @@ namespace IVH.Core.IntelligentVirtualAgent
         public bool shortReplies = true;
 
         /// <remarks>
+        /// Measured 2026-11-08 (Qwen3-1.7B, Frank's persona, 8 turns): asked to call <c>update_avatar_state</c>
+        /// as a function, the model chose a state in 4 turns and spoke in only 1 (a turn with a call had no
+        /// words); asked to open each reply with a tag, it chose a fitting state in 7 and spoke in all 8. The
+        /// server removes the tag from speech and text and sends it as the same tool call (PROTOCOL v1.6).
+        /// </remarks>
+        [Tooltip("Expressions, gestures and gaze come from a [emotion=...; action=...; gaze=...] tag the model writes at the start of each reply, instead of a function call. Small local models rarely call functions while they talk.")]
+        public bool avatarStateByTag = true;
+
+        /// <remarks>
         /// The server's model (Qwen3-1.7B through Ollama) has a 16,384-token context, and Ollama silently cuts a
         /// longer prompt to HALF of it from the front: measured 2026-11-08, Frank's persona plus a second
         /// document and the avatar description arrived as 8,194 tokens, the persona's start was lost and
@@ -96,7 +105,8 @@ namespace IVH.Core.IntelligentVirtualAgent
         public bool useVocalFrequencyFilter = true;
 
         [Header("UI Interface")]
-        public bool showSpeechTranscripts = false;
+        [Tooltip("Write the user's words and the agent's reply into the log panel. The local server always transcribes, so this costs nothing.")]
+        public bool showSpeechTranscripts = true;
         public Text logTextDisplay;
         public ScrollRect scrollRect;
 
@@ -130,6 +140,9 @@ namespace IVH.Core.IntelligentVirtualAgent
         private readonly StringBuilder _fullTranscript = new StringBuilder();
         private float _lpPrev, _hpPrevInput, _hpPrevOutput;
         private float _ignoreSpeechUntil;
+        /// <summary>The names the prompt offered; a command naming anything else is skipped (the model invents some).</summary>
+        private List<string> _offeredActions = new List<string>();
+        private List<string> _offeredEmotions = new List<string>();
 
         protected override void Awake()
         {
@@ -212,6 +225,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             string prompt = knowledge + BuildSystemPrompt();
             Debug.Log($"[LocalLiveAgent] system prompt {prompt.Length} characters (grounding {knowledge.Length}), voice {voiceName}");
             _wrapper.InputSampleRate = 16000;
+            _wrapper.AvatarStateByTag = avatarStateByTag;
 
             var toolManager = GetComponent<GeminiToolManager>();
             if (toolManager != null && toolManager.definedTools.Count > 0)
@@ -358,10 +372,45 @@ namespace IVH.Core.IntelligentVirtualAgent
         private IEnumerator QueueCommandUntilStopped(string act, string emo, string gaze)
         {
             if (agentLocomotion != null) while (agentLocomotion.isMoving) yield return null;
-            if (!string.IsNullOrEmpty(act) && !act.Equals("none", StringComparison.OrdinalIgnoreCase)) SafeRun(() => PerformAction(act), "action " + act);
-            if (!string.IsNullOrEmpty(emo) && !emo.Equals("none", StringComparison.OrdinalIgnoreCase)) SafeRun(() => ExpressEmotion(emo), "emotion " + emo);
+            act = Offered(act, _offeredActions, "action");
+            emo = Offered(emo, _offeredEmotions, "emotion");
+            Debug.Log($"[LocalLiveAgent] avatar: action {act ?? "-"}, emotion {emo ?? "-"}, gaze {(string.IsNullOrEmpty(gaze) ? "-" : gaze)}");
+            if (act != null) SafeRun(() => PerformAction(act), "action " + act);
+            if (emo != null) SafeRun(() => ExpressEmotion(emo), "emotion " + emo);
             if (!string.IsNullOrEmpty(gaze) && !gaze.Equals("none", StringComparison.OrdinalIgnoreCase)) HandleGaze(gaze);
         }
+
+        /// <summary>The offered name <paramref name="value"/> means (case-insensitive), or null for none / one never offered.</summary>
+        private string Offered(string value, List<string> offered, string what)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
+            value = value.Trim();
+            if (offered == null || offered.Count == 0) return value;
+            foreach (var o in offered)
+                if (o.Equals(value, StringComparison.OrdinalIgnoreCase)) return o;
+            // Words the model uses although they were not offered (measured: "friendly", "interested"), mapped
+            // to an offered expression when this avatar has it.
+            if (EmotionSynonyms.TryGetValue(value, out var synonym))
+                foreach (var o in offered)
+                    if (o.Equals(synonym, StringComparison.OrdinalIgnoreCase)) return o;
+            if (verboseCommandLog) Debug.Log($"[LocalLiveAgent] The model asked for {what} '{value}', which was not offered; skipped.");
+            return null;
+        }
+
+        [Tooltip("Log avatar commands the model asked for, including names that were not offered.")]
+        public bool verboseCommandLog = false;
+
+        private static readonly Dictionary<string, string> EmotionSynonyms = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "friendly", "happy" }, { "cheerful", "happy" }, { "warm", "happy" }, { "smiling", "happy" }, { "joyful", "happy" },
+            { "interested", "attentive" }, { "curious", "attentive" }, { "engaged", "attentive" }, { "focused", "attentive" },
+            { "enthusiastic", "excited" }, { "eager", "excited" },
+            { "empathetic", "sympathetic" }, { "concerned", "sympathetic" }, { "compassionate", "sympathetic" },
+            { "pensive", "thoughtful" }, { "serious", "thoughtful" }, { "reflective", "thoughtful" },
+            { "calm", "neutral" }, { "relaxed", "neutral" },
+            { "playful", "amused" }, { "humorous", "amused" },
+            { "confident", "proud" },
+        };
 
         private static void SafeRun(Action a, string what)
         {
@@ -387,10 +436,23 @@ namespace IVH.Core.IntelligentVirtualAgent
             sb.AppendLine($"Your name is {agentName}. You are a conversational embodied intelligent virtual agent. Your age is {age}. Your gender is {gender}. Your occupation is {occupation}. Additional information: {additionalDescription}.");
             sb.AppendLine("Everything you write is spoken aloud by a speech synthesiser: plain sentences only, no lists, no markdown, no emojis, no stage directions.");
             if (shortReplies) sb.AppendLine("Keep each reply to one to three sentences unless the user asks for more.");
-            sb.AppendLine("SYSTEM RULES:");
-            sb.AppendLine("1. You control a 3D avatar. Call 'update_avatar_state' only when your facial expression, body action or gaze should change, and always ALSO say your reply in words.");
-            sb.AppendLine("2. Do not call 'update_avatar_state' on every turn. If nothing changes, just speak.");
-            sb.AppendLine("3. Never narrate your tool calls.");
+
+            HashSet<string> playable = onlyOfferPlayableAnimations ? GetPlayableAnimationTriggers() : null;
+            _offeredActions = actionController != null
+                ? CleanList(actionController.GetActionsFiltered(bodyActionFilter, gender, bodyAnimationControllerType, playable, hiddenAnimationTriggers).Select(a => a.GetType().Name).ToList())
+                : new List<string>();
+            _offeredEmotions = (faceAnimator != null || emotionHandler != null)
+                ? CleanList(OfferedExpressions(playable).Select(kv => kv.Key).ToList())
+                : new List<string>();
+
+            if (avatarStateByTag) AppendTagRules(sb);
+            else
+            {
+                sb.AppendLine("SYSTEM RULES:");
+                sb.AppendLine("1. You control a 3D avatar. Call 'update_avatar_state' only when your facial expression, body action or gaze should change, and always ALSO say your reply in words.");
+                sb.AppendLine("2. Do not call 'update_avatar_state' on every turn. If nothing changes, just speak.");
+                sb.AppendLine("3. Never narrate your tool calls.");
+            }
             if (proactiveAnswerStyle)
             {
                 sb.AppendLine("CONVERSATION STYLE:");
@@ -398,15 +460,8 @@ namespace IVH.Core.IntelligentVirtualAgent
                 sb.AppendLine("- Stay in character: speak in the first person about your own life and work.");
                 sb.AppendLine("- Do not end every reply with a question. If you do not know, say so briefly.");
             }
-            HashSet<string> playable = onlyOfferPlayableAnimations ? GetPlayableAnimationTriggers() : null;
-            if (actionController != null)
-            {
-                var actions = actionController.GetActionsFiltered(bodyActionFilter, gender, bodyAnimationControllerType, playable, hiddenAnimationTriggers)
-                    .Select(a => a.GetType().Name).ToList();
-                sb.AppendLine("Allowed 'action' values: " + string.Join(", ", CleanList(actions)));
-            }
-            if (faceAnimator != null || emotionHandler != null)
-                sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", CleanList(OfferedExpressions(playable).Select(kv => kv.Key).ToList())));
+            if (_offeredActions.Count > 0) sb.AppendLine("Allowed 'action' values: " + string.Join(", ", _offeredActions));
+            if (_offeredEmotions.Count > 0) sb.AppendLine("Allowed 'emotion' values: " + string.Join(", ", _offeredEmotions));
             if (eyeGazeController != null) sb.AppendLine("Allowed 'gaze' values: 'User', 'Idle'");
             if (describeEmbodimentCapabilities)
             {
@@ -414,6 +469,32 @@ namespace IVH.Core.IntelligentVirtualAgent
                 sb.Append(AgentCapabilityDescriber.BuildPrompt(BuildEmbodimentCapabilities(playable)));
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// The tag instructions, with examples drawn from this avatar's own names. Varied examples matter: with a
+        /// single "Waving" example the model waved in 8 of 8 replies (measured 2026-11-08).
+        /// </summary>
+        private void AppendTagRules(StringBuilder sb)
+        {
+            string Pick(List<string> offered, params string[] wanted)
+            {
+                foreach (var w in wanted)
+                    foreach (var o in offered)
+                        if (o.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0) return o;
+                return offered.Count > 0 ? offered[0] : "none";
+            }
+            string Ex(string emo, string act, string gaze, string words) => $"[emotion={emo}; action={act}; gaze={gaze}] {words}";
+            var e = _offeredEmotions;
+            var a = _offeredActions;
+            sb.AppendLine("AVATAR: you have a 3D body. Start EVERY reply with one tag in square brackets saying how your face, body and gaze should look while you say it, then say your reply:");
+            sb.AppendLine("[emotion=<emotion>; action=<action>; gaze=<gaze>] your spoken words");
+            sb.AppendLine("Use only the allowed values listed below. Choose the emotion that matches what you are saying and the action that fits it; greet or wave only for hello and goodbye. The tag is never spoken.");
+            sb.AppendLine("Examples:");
+            sb.AppendLine(Ex(Pick(e, "happy", "smile"), Pick(a, "wav", "greet"), "User", "Hello, nice to meet you!"));
+            sb.AppendLine(Ex(Pick(e, "thought", "attentive", "neutral"), Pick(a, "explain", "talk", "think"), "User", "In short, it works by slowly rotating the virtual world."));
+            sb.AppendLine(Ex(Pick(e, "sympath", "sad", "concern"), Pick(a, "nod", "acknowledg"), "User", "I am sorry to hear that."));
+            sb.AppendLine(Ex(Pick(e, "amused", "laugh", "happy"), Pick(a, "shrug", "laugh"), "Idle", "Well, nobody is perfect."));
         }
 
         private List<KeyValuePair<string, string>> OfferedExpressions(HashSet<string> playable)
