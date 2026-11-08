@@ -630,7 +630,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        IVALogger.Warn(LogTag, $"Server Closed Connection. Status: {result.CloseStatus}");
+                        // The description carries Google's reason (e.g. "Resource exhausted" on a quota
+                        // refusal, which arrives as 1011 InternalServerError); without it every refusal looks alike.
+                        IVALogger.Warn(LogTag, $"Server Closed Connection. Status: {result.CloseStatus} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}");
                         reason = DisconnectReason.ServerClosed;
                         break;
                     }
