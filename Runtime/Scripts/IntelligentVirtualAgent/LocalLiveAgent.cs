@@ -372,18 +372,44 @@ namespace IVH.Core.IntelligentVirtualAgent
         private IEnumerator QueueCommandUntilStopped(string act, string emo, string gaze)
         {
             if (agentLocomotion != null) while (agentLocomotion.isMoving) yield return null;
-            act = Offered(act, _offeredActions, "action");
-            emo = Offered(emo, _offeredEmotions, "emotion");
+            var placed = PlaceAvatarNames(act, emo);
+            act = placed.Key;
+            emo = placed.Value;
             Debug.Log($"[LocalLiveAgent] avatar: action {act ?? "-"}, emotion {emo ?? "-"}, gaze {(string.IsNullOrEmpty(gaze) ? "-" : gaze)}");
             if (act != null) SafeRun(() => PerformAction(act), "action " + act);
             if (emo != null) SafeRun(() => ExpressEmotion(emo), "emotion " + emo);
             if (!string.IsNullOrEmpty(gaze) && !gaze.Equals("none", StringComparison.OrdinalIgnoreCase)) HandleGaze(gaze);
         }
 
-        /// <summary>The offered name <paramref name="value"/> means (case-insensitive), or null for none / one never offered.</summary>
-        private string Offered(string value, List<string> offered, string what)
+        /// <summary>
+        /// (action, emotion) to perform for the names the model gave. A small model sometimes puts a name under the
+        /// wrong key or under none (measured 2026-11-08: <c>[ConfidentAndSmile; action=...]</c>, the emotion key left
+        /// out), so each name goes to the slot whose offered list contains it, its own key's first.
+        /// </summary>
+        private KeyValuePair<string, string> PlaceAvatarNames(string rawAction, string rawEmotion)
         {
-            if (string.IsNullOrWhiteSpace(value) || value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
+            string act = null, emo = null;
+            void Place(string value, bool isAction)
+            {
+                if (string.IsNullOrWhiteSpace(value) || value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase)) return;
+                List<string> own = isAction ? _offeredActions : _offeredEmotions;
+                List<string> other = isAction ? _offeredEmotions : _offeredActions;
+                bool ownFree = isAction ? act == null : emo == null;
+                bool otherFree = isAction ? emo == null : act == null;
+                string m;
+                // An avatar that offers no names cannot check them: the name is used in its own slot as given.
+                if (ownFree && (m = Offered(value, own)) != null) { if (isAction) act = m; else emo = m; return; }
+                if (otherFree && other.Count > 0 && (m = Offered(value, other)) != null) { if (isAction) emo = m; else act = m; return; }
+                if (verboseCommandLog) Debug.Log($"[LocalLiveAgent] The model asked for '{value}', which is not offered or whose slot is taken; skipped.");
+            }
+            Place(rawAction, true);
+            Place(rawEmotion, false);
+            return new KeyValuePair<string, string>(act, emo);
+        }
+
+        /// <summary>The offered name <paramref name="value"/> means (case-insensitive), or null for one never offered.</summary>
+        private static string Offered(string value, List<string> offered)
+        {
             value = value.Trim();
             if (offered == null || offered.Count == 0) return value;
             foreach (var o in offered)
@@ -393,7 +419,6 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (EmotionSynonyms.TryGetValue(value, out var synonym))
                 foreach (var o in offered)
                     if (o.Equals(synonym, StringComparison.OrdinalIgnoreCase)) return o;
-            if (verboseCommandLog) Debug.Log($"[LocalLiveAgent] The model asked for {what} '{value}', which was not offered; skipped.");
             return null;
         }
 

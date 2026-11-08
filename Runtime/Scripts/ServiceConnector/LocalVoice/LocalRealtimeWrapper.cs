@@ -250,7 +250,19 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         {
             if (name == "update_avatar_state")
             {
-                OnCommandReceived?.Invoke((string)args["action"] ?? "", (string)args["emotion"] ?? "", (string)args["gaze"] ?? "");
+                string action = (string)args["action"] ?? "", emotion = (string)args["emotion"] ?? "";
+                // A tag's values written without a key (PROTOCOL v1.7 "values"), e.g. [ConfidentAndSmile; action=...]:
+                // they fill the empty slots, emotion first; the agent moves a value to the other slot when its
+                // name lists say it belongs there.
+                if (args["values"] is JArray bare)
+                    foreach (var v in bare)
+                    {
+                        string s = (string)v;
+                        if (string.IsNullOrWhiteSpace(s)) continue;
+                        if (emotion.Length == 0) emotion = s;
+                        else if (action.Length == 0) action = s;
+                    }
+                OnCommandReceived?.Invoke(action, emotion, (string)args["gaze"] ?? "");
                 // A tag's call (inline-...) expects no result: the history holds the tag as text.
                 if (callId == null || !callId.StartsWith("inline-", StringComparison.Ordinal))
                     _ = _client.SendToolResultAsync(callId, new JObject { ["status"] = "ok" });
