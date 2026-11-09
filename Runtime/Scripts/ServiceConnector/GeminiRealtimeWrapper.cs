@@ -20,10 +20,15 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
     public enum GeminiModelType
     {
         //Flash20ExpGoogleAI,        // Expiring (Works on Alpha), disabled for now
-        /// <summary>Google AI Studio (API key, free tier). Higher latency than Vertex.</summary>
+        // Serialized by index: append new models, never reorder.
+        /// <summary>Gemini 2.5 Flash native audio on Google AI Studio (API key, free tier). Higher latency than Vertex.</summary>
         Flash25PreviewGoogleAI,
-        /// <summary>Google Cloud Vertex AI (service account, paid). Lower latency, enterprise features.</summary>
-        Flash25VertexAI
+        /// <summary>Gemini 2.5 Flash native audio on Google Cloud Vertex AI (service account, paid). Lower latency, enterprise features.</summary>
+        Flash25VertexAI,
+        /// <summary>Gemini 3.8 Live on Google AI Studio (API key). Thinking is not configurable.</summary>
+        Live38GoogleAI,
+        /// <summary>Gemini 3.8 Live on Google Cloud Vertex AI (service account, paid). Offered in the <c>eu</c> and <c>us</c> multi-regions and <c>us-central1</c>.</summary>
+        Live38VertexAI
     }
 
     /// <summary>
@@ -39,6 +44,77 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
     /// <summary>What Gemini answers in. AUDIO is what every Live model supports; TEXT only where the model accepts it.</summary>
     public enum GeminiResponseModality { Audio, Text }
 
+    /// <summary>Draws a string field as a dropdown of the Vertex locations that serve the wrapper's selected model.</summary>
+    public class VertexLocationAttribute : PropertyAttribute { }
+
+    /// <summary>
+    /// The Vertex AI locations that serve each Gemini Live model. Feeds the Inspector dropdown for
+    /// <see cref="GeminiRealtimeWrapper.vertexLocation"/> and the check before a session connects.
+    /// </summary>
+    /// <remarks>
+    /// From Google's location table (November 2026). Google adds locations over time, so one missing here
+    /// can still be typed in as a custom value. Neither model is served on <c>global</c>: the session is
+    /// refused with 1008, "Publisher model ... was not found".
+    /// </remarks>
+    public static class VertexLiveLocations
+    {
+        /// <summary>A Vertex location code and where it is.</summary>
+        public readonly struct Location
+        {
+            public readonly string Code;
+            public readonly string Place;
+            public Location(string code, string place) { Code = code; Place = place; }
+        }
+
+        // First entry is the default. Europe first: the SDK's home and most of its users.
+        private static readonly Location[] Gemini25 =
+        {
+            new Location("europe-west4", "Netherlands"),
+            new Location("europe-west1", "Belgium"),
+            new Location("europe-north1", "Finland"),
+            new Location("europe-central2", "Warsaw"),
+            new Location("europe-west8", "Milan"),
+            new Location("europe-southwest1", "Madrid"),
+            new Location("us-central1", "Iowa"),
+            new Location("us-east1", "South Carolina"),
+            new Location("us-east4", "N. Virginia"),
+            new Location("us-east5", "Columbus"),
+            new Location("us-south1", "Dallas"),
+            new Location("us-west1", "Oregon"),
+            new Location("us-west4", "Las Vegas"),
+        };
+
+        private static readonly Location[] Gemini38 =
+        {
+            new Location("eu", "EU multi-region"),
+            new Location("us", "US multi-region"),
+            new Location("us-central1", "Iowa"),
+        };
+
+        /// <summary>The locations that serve <paramref name="model"/>, default first. Empty for the AI Studio models, which have one global endpoint.</summary>
+        public static IReadOnlyList<Location> For(GeminiModelType model) => model switch
+        {
+            GeminiModelType.Flash25VertexAI => Gemini25,
+            GeminiModelType.Live38VertexAI => Gemini38,
+            _ => Array.Empty<Location>(),
+        };
+
+        /// <summary>The location used when none is set: the first one listed for <paramref name="model"/>.</summary>
+        public static string DefaultFor(GeminiModelType model)
+        {
+            var list = For(model);
+            return list.Count > 0 ? list[0].Code : "";
+        }
+
+        /// <summary>Whether <paramref name="code"/> is a listed location for <paramref name="model"/>.</summary>
+        public static bool IsListed(GeminiModelType model, string code)
+        {
+            foreach (var location in For(model))
+                if (location.Code == code) return true;
+            return false;
+        }
+    }
+
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         private const string LogTag = "GeminiRealtime";
@@ -49,6 +125,20 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
 
         /// <summary>Which Gemini endpoint to use for this session.</summary>
         public GeminiModelType selectedModel = GeminiModelType.Flash25PreviewGoogleAI;
+
+        /// <summary>
+        /// Vertex AI location for the Vertex models; ignored for AI Studio. Empty uses the model's default:
+        /// <c>europe-west4</c> for Gemini 2.5 Live, <c>eu</c> (multi-region) for Gemini 3.8 Live.
+        /// </summary>
+        /// <remarks>
+        /// Each model is offered only in some locations (<see cref="VertexLiveLocations"/>), and the server
+        /// refuses the session during setup in any other. A nearby location shortens every round trip, and a
+        /// different one helps when a location answers "Resource exhausted" (shared capacity, not a project quota).
+        /// </remarks>
+        [Tooltip("Vertex AI location (Vertex models only). The list shows the locations that serve the selected model. " +
+                 "Default: europe-west4 for Gemini 2.5 Live, eu for Gemini 3.8 Live. Pick one near your users; switch when a location answers 'Resource exhausted'.")]
+        [VertexLocation]
+        public string vertexLocation = "";
 
         /// <summary>When true, Gemini is told to infer user sentiment from audio and adapt its tone.</summary>
         [Tooltip("Set to true for analyzing user's sentiments from audio. ")]
@@ -76,8 +166,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// <remarks>
         /// Turn this off if you want the model to reason before answering (slower, but better on
         /// multi-step questions), or in the unlikely event your endpoint rejects <c>thinking_config</c>.
+        /// Ignored for Gemini 3.8 Live, which accepts no thinking setting.
         /// </remarks>
-        [Tooltip("Disable the model's internal 'thinking' pass (thinking_budget = 0). Recommended ON for realtime voice: Gemini 2.5 thinks dynamically by default, which adds a pause before every reply.")]
+        [Tooltip("Disable the model's internal 'thinking' pass (thinking_budget = 0). Recommended ON for realtime voice: Gemini 2.5 thinks dynamically by default, which adds a pause before every reply. Ignored for Gemini 3.8 Live, which accepts no thinking setting.")]
         public bool disableThinking = true;
 
         /// <summary>
@@ -196,11 +287,34 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private const string V1ALPHA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
         private const string V1BETA_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
         
-        // Don't use vertex AI v1beta1 is unstable, using v1 instead.
-        private const string VERTEX_PROJECT_LOCATION = "us-central1"; 
-        private const string VERTEX_URL_TEMPLATE = "wss://{0}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent";
+        // Don't use vertex AI v1beta1 is unstable, using v1 instead. {0} is the host from VertexHost().
+        private const string VERTEX_URL_TEMPLATE = "wss://{0}/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent";
 
-        private bool IsVertexModel() => selectedModel == GeminiModelType.Flash25VertexAI;
+        private bool IsVertexModel() => selectedModel == GeminiModelType.Flash25VertexAI || selectedModel == GeminiModelType.Live38VertexAI;
+
+        /// <summary>
+        /// Gemini 3.x Live differs from 2.5 in two ways the setup and send paths must respect: it closes the
+        /// session on any <c>thinking_config</c> (1007), and it reads <c>media_chunks</c> as audio, so a camera
+        /// frame sent there also closes the session.
+        /// </summary>
+        private bool IsGemini3Live() => selectedModel == GeminiModelType.Live38GoogleAI || selectedModel == GeminiModelType.Live38VertexAI;
+
+        /// <summary>The Vertex location sessions connect to: <see cref="vertexLocation"/>, or the model's default when it is empty.</summary>
+        public string VertexLocation => !string.IsNullOrWhiteSpace(vertexLocation)
+            ? vertexLocation.Trim().ToLowerInvariant()
+            : VertexLiveLocations.DefaultFor(selectedModel);
+
+        /// <summary>Regions use <c>{region}-aiplatform</c>; the <c>eu</c>/<c>us</c> multi-regions and <c>global</c> have their own hosts.</summary>
+        private static string VertexHost(string location)
+        {
+            switch (location)
+            {
+                case "global": return "aiplatform.googleapis.com";
+                case "eu":
+                case "us": return $"aiplatform.{location}.rep.googleapis.com";
+                default: return $"{location}-aiplatform.googleapis.com";
+            }
+        }
 
         private string GetModelString() => selectedModel switch
         {
@@ -213,6 +327,10 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             // This is the AI Studio Model ID
             GeminiModelType.Flash25PreviewGoogleAI => "gemini-2.5-flash-native-audio-preview-12-2025",
 
+            // Same model ID on both backends.
+            GeminiModelType.Live38GoogleAI => "gemini-3.8-live",
+            GeminiModelType.Live38VertexAI => "gemini-3.8-live",
+
             _ => "gemini-2.5-flash-native-audio-preview-12-2025"
         };
 
@@ -220,9 +338,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         {
             if (IsVertexModel())
             {
-                // Vertex URL (us-central1-aiplatform...)
-                IVALogger.Info(LogTag, string.Format(VERTEX_URL_TEMPLATE, VERTEX_PROJECT_LOCATION));
-                return string.Format(VERTEX_URL_TEMPLATE, VERTEX_PROJECT_LOCATION);
+                string url = string.Format(VERTEX_URL_TEMPLATE, VertexHost(VertexLocation));
+                IVALogger.Info(LogTag, url);
+                return url;
             }
             else
             {
@@ -293,6 +411,10 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             {
                 try
                 {
+                    if (!VertexLiveLocations.IsListed(selectedModel, VertexLocation))
+                        IVALogger.Warn(LogTag, $"'{modelId}' is not listed for Vertex location '{VertexLocation}'. Connecting anyway; " +
+                            "if Google refuses the session (1008, model not found), pick a location from the Vertex Location list.");
+
                     IVALogger.Info(LogTag, "Authenticating with Vertex AI Service Account...");
                     // Looks in C:\Users\[USER]\.aiapi\service_account.json
                     var authResult = await VertexAuthHelper.GetAccessTokenFromUserDir("service_account.json");
@@ -300,7 +422,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     this.accessToken = authResult.accessToken;
 
                     // Vertex requires FULL resource path for the model
-                    modelId = $"projects/{authResult.projectId}/locations/{VERTEX_PROJECT_LOCATION}/publishers/google/models/{modelId}";
+                    modelId = $"projects/{authResult.projectId}/locations/{VertexLocation}/publishers/google/models/{modelId}";
                     return (true, GetUrl(authResult.projectId), modelId);
                 }
                 catch (Exception e)
@@ -377,7 +499,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             FailFast(new ServiceConnectionException(
                 $"Gemini accepted the connection but did not acknowledge session setup within {setupTimeoutSeconds:0}s. " +
                 (IsVertexModel()
-                    ? "For Vertex, verify the service account has the 'Vertex AI User' role and that the Vertex AI API is enabled on the project."
+                    ? $"For Vertex, verify the service account has the 'Vertex AI User' role, that the Vertex AI API is enabled on the project, and that '{GetModelString()}' is offered in location '{VertexLocation}'."
                     : "Check the API key and whether the free-tier quota for this model is exhausted.")),
                 DisconnectReason.ServerClosed);
 
@@ -451,7 +573,9 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             // Gemini 2.5 runs *dynamic thinking by default*, which inserts a reasoning pause before
             // every spoken reply. In a realtime voice session that pause is the dominant source of
             // perceived latency, so we opt out on both backends unless the user asks for reasoning.
-            if (disableThinking)
+            // Gemini 3.x Live closes the session on any thinking_config (1007: "Thinking budget is not
+            // supported for this model"), so it never gets one.
+            if (disableThinking && !IsGemini3Live())
             {
                 generationConfig["thinking_config"] = new JObject
                 {
@@ -578,7 +702,11 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public void SendAudioChunk(byte[] pcmData)
         {
             if (!IsConnected) return;
-            var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "audio/pcm", data = Convert.ToBase64String(pcmData) } } } };
+            string data = Convert.ToBase64String(pcmData);
+            // Gemini 3.x Live takes the typed `audio` field; the 2.5 models keep the deprecated media_chunks they were validated with.
+            object msg = IsGemini3Live()
+                ? new { realtime_input = new { audio = new { mime_type = "audio/pcm;rate=16000", data } } }
+                : (object)new { realtime_input = new { media_chunks = new[] { new { mime_type = "audio/pcm", data } } } };
             _ = SendJsonAsync(msg);
         }
 
@@ -586,7 +714,11 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public void SendImage(byte[] imageData)
         {
             if (!IsConnected) return;
-            var msg = new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data = Convert.ToBase64String(imageData) } } } };
+            string data = Convert.ToBase64String(imageData);
+            // Gemini 3.x Live reads media_chunks as audio and closes the session on a JPEG there (1007); frames go in `video`.
+            object msg = IsGemini3Live()
+                ? new { realtime_input = new { video = new { mime_type = "image/jpeg", data } } }
+                : (object)new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data } } } };
             _ = SendJsonAsync(msg);
         }
 
@@ -634,6 +766,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                         // refusal, which arrives as 1011 InternalServerError); without it every refusal looks alike.
                         IVALogger.Warn(LogTag, $"Server Closed Connection. Status: {result.CloseStatus} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}");
                         reason = DisconnectReason.ServerClosed;
+
+                        // A close before setupComplete is a refused setup (model not offered in this location,
+                        // an unsupported field, no access, no capacity). Without auto-reconnect nothing else
+                        // reports it, and the agent would sit on "Connecting..." indefinitely.
+                        if (!_setupAcknowledged && !autoReconnect)
+                        {
+                            string where = IsVertexModel() ? $"'{GetModelString()}' in Vertex location '{VertexLocation}'" : $"'{GetModelString()}'";
+                            FailFast(new ServiceConnectionException(
+                                $"Gemini refused the session for {where} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}"),
+                                DisconnectReason.ServerClosed);
+                        }
                         break;
                     }
 

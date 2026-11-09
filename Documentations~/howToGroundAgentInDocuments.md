@@ -191,7 +191,7 @@ not perform the same.
 | :--- | :--- | :--- |
 | Credential | `~/.aiapi/auth.json` (API key) | `~/.aiapi/service_account.json` |
 | Cost | Free tier available | Paid, billed per session |
-| Endpoint | Global, shared preview capacity | Regional (`us-central1`), provisioned |
+| Endpoint | Global, shared preview capacity | The wrapper's `Vertex Location` (default `europe-west4`), shared capacity in that location |
 | Turn latency, grounded agent | Noticeably higher, and variable | Consistently low |
 | Best for | First run, zero-cost prototyping | Demos, user studies, anything timed |
 

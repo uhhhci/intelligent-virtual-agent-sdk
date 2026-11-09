@@ -192,12 +192,17 @@ trigger leads to a clip in the animator controller are offered to the model (`On
 
 ## Connect to Gemini Live Cloud Service
 
-The current implementation supports two live models: one free-tier model from Google AI Studio and one paid model from Google's Vertex AI. 
+The current implementation supports two live model generations, Gemini 2.5 Flash native audio and Gemini 3.8 Live, each from Google AI Studio and from Google's Vertex AI. Pick one with `Selected Model` on the `Gemini Realtime Wrapper`.
 
-| Model Variant | Source | Tier | Latency | Model ID / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Gemini Live 2.5 Flash** | Vertex AI | Paid | Low | [`gemini-live-2.5-flash-native-audio`](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api) |
-| **Gemini Live 2.5 Flash** | Google AI | Free | High | [`gemini-2.5-flash-native-audio-preview-12-2025`](https://ai.google.dev/gemini-api/docs/live?example=mic-stream) |
+| Model Variant | `Selected Model` | Source | Tier | Latency | Model ID / Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Gemini Live 2.5 Flash** | `Flash25VertexAI` | Vertex AI | Paid | Low | [`gemini-live-2.5-flash-native-audio`](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/live-api) |
+| **Gemini Live 2.5 Flash** | `Flash25PreviewGoogleAI` | Google AI | Free | High | [`gemini-2.5-flash-native-audio-preview-12-2025`](https://ai.google.dev/gemini-api/docs/live?example=mic-stream) |
+| **Gemini 3.8 Live** | `Live38VertexAI` | Vertex AI | Paid | Low | [`gemini-3.8-live`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-8-live), Vertex locations `eu`, `us`, `us-central1` |
+| **Gemini 3.8 Live** | `Live38GoogleAI` | Google AI | See AI Studio pricing | Medium | [`gemini-3.8-live`](https://aistudio.google.com/docs/live-api/get-started-websocket) |
+
+Gemini 3.8 Live accepts no thinking setting (the wrapper leaves it out, so `Disable Thinking` has no effect),
+always uses proactive audio, and drops affective dialog.
 
 Both backends serve the same model family and both support function calling, vision, and document
 grounding. They differ in how consistently they deliver it:
@@ -208,9 +213,15 @@ grounding. They differ in how consistently they deliver it:
   and variable instead of failing outright. Check your live quota on the
   [AI Studio rate-limit dashboard](https://aistudio.google.com/rate-limit). Best for a first run and
   for zero-cost prototyping.
-* **Vertex AI** runs on a regional endpoint (`us-central1`) with provisioned capacity, and is billed
-  per session. Turn latency is consistently low. Use it for demos, user studies, and anything where
-  responsiveness is being measured.
+* **Vertex AI** runs in the location set by `Vertex Location` on the wrapper, and is billed per
+  session. Turn latency is consistently low. Use it for demos, user studies, and anything where
+  responsiveness is being measured. Left empty, the location is `europe-west4` for Gemini 2.5 and the
+  `eu` multi-region for Gemini 3.8. Each model is offered only in some locations, and a session in any
+  other is refused during setup, so the field's dropdown lists only the locations that serve the selected
+  model (`Custom...` takes a location Google adds later). Neither Live model is served on Vertex's `global`
+  endpoint. Pick a location near your users: every round trip crosses that distance. Pay-as-you-go Live sessions share Google's capacity in that location, so a
+  session closed with `1011 Resource exhausted` means the location is busy, not that a project quota
+  was hit. Another location (or Provisioned Throughput) is the fix.
 
 This gap widens when the agent is grounded in documents, because grounding enlarges the prompt that
 continuous audio then builds on. Grounding *quality* is identical on both — prototype on AI Studio,

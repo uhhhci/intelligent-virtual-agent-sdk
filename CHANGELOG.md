@@ -3,6 +3,22 @@ All notable changes to this package are documented in this file.
 
 ## Unreleased
 
+### Gemini Live: 3.8 Live model and Vertex location
+- **Gemini 3.8 Live.** New `GeminiModelType.Live38VertexAI` and `Live38GoogleAI` (`gemini-3.8-live`). The
+  wrapper leaves `thinking_config` out for 3.8 (the server closes the session on it, 1007), and sends
+  microphone audio in the typed `audio` field and camera frames in `video`: 3.8 reads `media_chunks` as
+  audio and closes the session on a JPEG there. The 2.5 models are unchanged.
+- **`Vertex Location` on `GeminiRealtimeWrapper`.** Vertex sessions no longer hard-code `us-central1`. The
+  Inspector shows a dropdown of the locations that serve the selected model (`VertexLiveLocations`), plus
+  `Custom...` for one Google adds later; a location the model is not listed for is flagged with a warning
+  in the Inspector and the Console. Default (empty) is `europe-west4` for Gemini 2.5 and the `eu`
+  multi-region for Gemini 3.8; multi-regions (`eu`, `us`) connect to their own hosts. Neither Live model is
+  served on `global` (1008, model not found). Existing Vertex scenes move from `us-central1` to
+  `europe-west4` unless the field is set.
+- **Refused setups reach the HUD.** A server close before `setupComplete` (model not offered in the location,
+  an unsupported field, no capacity) is reported through `OnFatalError` with Google's reason when
+  `Auto Reconnect` is off, instead of leaving the agent on "Connecting...".
+
 ### Avatar SDK (MetaPerson) characters
 - **`CharacterType.AvatarSDK`.** Avatar SDK MetaPerson exports work with `GeminiLiveAgent` (and the other
   `AgentBase` agents) through **Setup Virtual Agent**, like CC4 and Rocketbox characters, with either emotion
