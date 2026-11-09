@@ -125,8 +125,31 @@ namespace IVH.Core.IntelligentVirtualAgent
         /// this on disables vocal interruption (the agent can't hear the user while talking).</summary>
         public Toggle preventEchoToggle;
 
+        [Header("Keyboard Shortcuts (Optional, None = off)")]
+        /// <summary>Hides or shows the whole HUD (toggle buttons and both panels) for a clean screen.</summary>
+        [Tooltip("Hides / shows the whole HUD (toggle buttons and panels) for a clean screen.")]
+        public KeyCode toggleHudKey = KeyCode.None;
+
+        /// <summary>Shows or hides the conversation transcript panel.</summary>
+        public KeyCode toggleTranscriptKey = KeyCode.None;
+
+        /// <summary>Shows or hides the settings panel.</summary>
+        public KeyCode toggleSettingsKey = KeyCode.None;
+
+        /// <summary>Starts a new session (same as the Reconnect button).</summary>
+        public KeyCode reconnectKey = KeyCode.None;
+
+        /// <summary>Stops the agent's current reply (same as the Force Interrupt button).</summary>
+        public KeyCode interruptKey = KeyCode.None;
+
+        /// <summary>Start with the HUD hidden (press <see cref="toggleHudKey"/> to show it).</summary>
+        public bool startWithHudHidden = false;
+
         private RenderTexture _agentPreviewRT;
         private Coroutine _previewRoutine;
+        private bool _hudHidden;
+        private bool _logVisibleBeforeHide;
+        private bool _settingsVisibleBeforeHide;
 
         private void Awake()
         {
@@ -161,6 +184,8 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void Update()
         {
+            HandleShortcuts();
+
             // Keep the vision toggle in sync with the agent's live state. Cheap bool compare;
             // covers the case where another caller (legacy Start/Stop buttons, scripted toggle,
             // tool-call) changes the vision flag without going through the toggle UI.
@@ -171,6 +196,51 @@ namespace IVH.Core.IntelligentVirtualAgent
             }
         }
 
+        private void HandleShortcuts()
+        {
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (Live == null) return;
+            if (Pressed(toggleHudKey)) SetHudHidden(!_hudHidden);
+            if (Pressed(toggleTranscriptKey)) HandleTranscriptionToggleClicked();
+            if (Pressed(toggleSettingsKey)) HandleSettingsToggleClicked();
+            if (Pressed(reconnectKey)) HandleReconnectClicked();
+            if (Pressed(interruptKey)) HandleForceInterruptClicked();
+#endif
+        }
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+        private static bool Pressed(KeyCode key) => key != KeyCode.None && UnityEngine.Input.GetKeyDown(key);
+#endif
+
+        /// <summary>
+        /// Hides the whole HUD (toggle buttons and panels) or brings it back with the panels that were
+        /// open before. The controls keep working through the keyboard shortcuts while hidden.
+        /// </summary>
+        public void SetHudHidden(bool hidden)
+        {
+            if (hidden == _hudHidden) return;
+            _hudHidden = hidden;
+            if (hidden)
+            {
+                _logVisibleBeforeHide = logPanel != null && logPanel.activeSelf;
+                _settingsVisibleBeforeHide = settingsPanel != null && settingsPanel.activeSelf;
+                if (logPanel != null) logPanel.SetActive(false);
+                if (settingsPanel != null) settingsPanel.SetActive(false);
+            }
+            else
+            {
+                if (logPanel != null) logPanel.SetActive(_logVisibleBeforeHide);
+                if (settingsPanel != null) settingsPanel.SetActive(_settingsVisibleBeforeHide);
+            }
+
+            // The toggle-button row lives under this object, which must stay active to read the keys.
+            foreach (Transform child in transform)
+            {
+                if ((logPanel != null && child.gameObject == logPanel) || (settingsPanel != null && child.gameObject == settingsPanel)) continue;
+                child.gameObject.SetActive(!hidden);
+            }
+        }
+
         private void Start()
         {
             if (settingsPanel != null) settingsPanel.SetActive(startWithSettingsOpen);
@@ -178,6 +248,17 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (showLogToggle != null) showLogToggle.SetIsOnWithoutNotify(startWithLogVisible);
             if (cameraPreviewToggle != null) cameraPreviewToggle.SetIsOnWithoutNotify(false);
             if (cameraPreviewImage != null) cameraPreviewImage.gameObject.SetActive(false);
+            if (startWithHudHidden) SetHudHidden(true);
+        }
+
+        /// <summary>
+        /// Clears the UI selection after a click. A selected button is pressed again by Space or Enter,
+        /// which would, for example, restart the session in the middle of a conversation.
+        /// </summary>
+        private static void ClearSelection()
+        {
+            if (UnityEngine.EventSystems.EventSystem.current != null)
+                UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
         }
 
         private AgentBase FindLiveAgentInParents()
@@ -207,30 +288,34 @@ namespace IVH.Core.IntelligentVirtualAgent
             StopAgentCameraPreview();
         }
 
-        private void HandleReconnectClicked() => Live.Connect();
-        private void HandleStartVisionClicked() => Live.ToggleVisionStream(true);
-        private void HandleStopVisionClicked() => Live.ToggleVisionStream(false);
-        private void HandleForceInterruptClicked() => Live.RequestInterrupt("ui_button");
+        private void HandleReconnectClicked() { ClearSelection(); Live.Connect(); }
+        private void HandleStartVisionClicked() { ClearSelection(); Live.ToggleVisionStream(true); }
+        private void HandleStopVisionClicked() { ClearSelection(); Live.ToggleVisionStream(false); }
+        private void HandleForceInterruptClicked() { ClearSelection(); Live.RequestInterrupt("ui_button"); }
 
         private void HandleSettingsToggleClicked()
         {
+            ClearSelection();
             if (settingsPanel == null) return;
             settingsPanel.SetActive(!settingsPanel.activeSelf);
         }
 
         private void HandleTranscriptionToggleClicked()
         {
+            ClearSelection();
             if (logPanel == null) return;
             logPanel.SetActive(!logPanel.activeSelf);
         }
 
         private void HandleLogToggleChanged(bool isVisible)
         {
+            ClearSelection();
             if (logPanel != null) logPanel.SetActive(isVisible);
         }
 
         private void HandleCameraPreviewToggleChanged(bool isVisible)
         {
+            ClearSelection();
             if (cameraPreviewImage != null) cameraPreviewImage.gameObject.SetActive(isVisible);
 
             if (!isVisible)
@@ -354,6 +439,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandleMicrophoneSelected(int index)
         {
+            ClearSelection();
             string[] devices = Microphone.devices;
             if (index < 0 || index >= devices.Length) return;
             Live.MicrophoneDeviceName = devices[index];
@@ -371,6 +457,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandleCameraSourceChanged(int index)
         {
+            ClearSelection();
             var newSource = index == 0 ? TargetCameraType.WebCam : TargetCameraType.AgentCamera;
             agent.targetCameraType = newSource;
 
@@ -420,6 +507,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandleInterruptionToggleChanged(bool isOn)
         {
+            ClearSelection();
             Live.EnableVocalInterruption = isOn;
         }
 
@@ -431,6 +519,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandleVisionToggleChanged(bool isOn)
         {
+            ClearSelection();
             // Route through ToggleVisionStream so the auto-capture coroutine is started / stopped
             // alongside the bool flag — writing agent.vision directly leaves the coroutine state
             // inconsistent.
@@ -445,6 +534,7 @@ namespace IVH.Core.IntelligentVirtualAgent
 
         private void HandlePreventEchoToggleChanged(bool isOn)
         {
+            ClearSelection();
             Live.MuteMicWhileTalking = isOn;
         }
     }

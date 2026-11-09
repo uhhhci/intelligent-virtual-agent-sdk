@@ -236,6 +236,20 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             EditorGUILayout.LabelField("Post-Interrupt Safety", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(postInterruptDropTimeoutProp, new GUIContent("Drop Timeout (s)"));
             EditorGUILayout.HelpBox("After client-side interrupt, drop incoming agent audio until Gemini's server-side ack arrives, capped at this timeout. Prevents the prior turn from resuming.", MessageType.None);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Reply Style", EditorStyles.boldLabel);
+            DrawByName("proactiveAnswerStyle");
+            DrawByName("conciseReplies");
+            if (serializedObject.FindProperty("conciseReplies").boolValue)
+            {
+                EditorGUI.indentLevel++;
+                DrawByName("maxSentencesPerReply");
+                EditorGUI.indentLevel--;
+            }
+            DrawByName("mirrorUserLanguage");
+            DrawByName("allowExpressiveSpeech");
+            EditorGUILayout.HelpBox("These rules are part of the system prompt, which Gemini Live receives once per session: changes take effect on the next Reconnect.", MessageType.None);
         }
 
         // ---------------------------------------------------------------------
@@ -300,6 +314,10 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 EditorGUILayout.PropertyField(visionUpdateFrequencyProp, new GUIContent("Update Frequency (s)"));
                 EditorGUI.indentLevel--;
             }
+
+            EditorGUILayout.Space();
+            DrawByName("visionSourceDescription");
+            EditorGUILayout.HelpBox("When vision is on at connect time, the system prompt tells the agent what its camera shows and how to use it (react to people, answer 'what do you see?', never guess identities). Leave the description empty for the default wording.", MessageType.None);
         }
 
         /// <summary>
@@ -422,6 +440,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             }
             EditorGUILayout.PropertyField(logTextDisplayProp, new GUIContent("Log Text Display"));
             EditorGUILayout.PropertyField(scrollRectProp, new GUIContent("Scroll Rect"));
+            DrawByName("agentTranscriptLabel");
+            DrawByName("userTranscriptLabel");
 
             EditorGUILayout.Space(4);
 
@@ -450,8 +470,8 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
                 "(hidden by default). Settings sections: Connection (Reconnect), Microphone, Camera " +
                 "(source switch, live preview, vision on/off toggle, stream-frequency slider), " +
                 "Conversation (vocal-interruption toggle, prevent-echo toggle), Actions (Force Interrupt). " +
-                "At runtime, the settings panel is draggable via its title bar and resizable via the " +
-                "bottom-right corner grip. The transcription panel is also resizable via its bottom-right grip.",
+                "At runtime, both panels are draggable via their title bars and resizable via their " +
+                "bottom-right corner grips; they remember their layout between sessions and are kept on screen.",
                 MessageType.None);
         }
 
@@ -617,21 +637,10 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             transcriptImg.raycastTarget = true;
             ApplyOutline(transcriptPanelGo, ColorBorder);
 
-            var transcriptHeaderGo = new GameObject("Header", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            transcriptHeaderGo.transform.SetParent(transcriptPanelGo.transform, false);
-            var transcriptHeaderRt = (RectTransform)transcriptHeaderGo.transform;
-            transcriptHeaderRt.anchorMin = new Vector2(0f, 1f);
-            transcriptHeaderRt.anchorMax = new Vector2(1f, 1f);
-            transcriptHeaderRt.pivot     = new Vector2(0.5f, 1f);
-            transcriptHeaderRt.anchoredPosition = new Vector2(0f, -14f);
-            transcriptHeaderRt.sizeDelta = new Vector2(-32f, 22f);
-            var transcriptHeaderText = transcriptHeaderGo.GetComponent<Text>();
-            transcriptHeaderText.font = BodyFont;
-            transcriptHeaderText.fontSize = FontSizeHeader;
-            transcriptHeaderText.alignment = TextAnchor.UpperLeft;
-            transcriptHeaderText.color = ColorTextMuted;
-            transcriptHeaderText.text = "CONVERSATION";
-            transcriptHeaderText.raycastTarget = false;
+            // Title strip doubles as a drag handle, like the settings panel's, so the transcript can be
+            // moved as well as resized (a panel whose grip ends up below the screen edge was stuck).
+            AddDragHandleBar(transcriptPanelGo, transcriptPanelRt, dragBarHeight, "Conversation");
+            transcriptPanelGo.AddComponent<UIPanelLayoutMemory>();
 
             var scrollGo = new GameObject("ScrollView", typeof(RectTransform), typeof(ScrollRect));
             scrollGo.transform.SetParent(transcriptPanelGo.transform, false);
@@ -639,7 +648,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             scrollRt.anchorMin = Vector2.zero;
             scrollRt.anchorMax = Vector2.one;
             scrollRt.offsetMin = new Vector2(16f, 16f);
-            scrollRt.offsetMax = new Vector2(-16f, -44f);
+            scrollRt.offsetMax = new Vector2(-16f, -(dragBarHeight + 10f));
 
             var scrollRectComp = scrollGo.GetComponent<ScrollRect>();
             scrollRectComp.horizontal = false;
@@ -731,6 +740,7 @@ namespace IVH.Core.IntelligentVirtualAgent.EditorScripts
             //     the whole settings panel by dragging this bar. Lives above the ScrollRect so it
             //     never competes with scroll input.
             AddDragHandleBar(settingsPanelGo, settingsPanelRt, dragBarHeight, "Settings");
+            settingsPanelGo.AddComponent<UIPanelLayoutMemory>();
 
             // 5b. ScrollRect + Viewport + Content so the panel scrolls when its dense control set
             //     overflows the fixed `settingsHeight` (always likely on smaller screens / VR HUDs).

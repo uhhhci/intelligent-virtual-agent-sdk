@@ -32,6 +32,12 @@ namespace IVH.Core.IntelligentVirtualAgent
         public TargetCameraType visionSource;
         public float visionIntervalSeconds;
 
+        /// <summary>What the camera shows, in the agent's words (e.g. "a webcam on your screen that looks at the people in front of you"). Empty = default wording.</summary>
+        public string visionSourceDescription;
+
+        /// <summary>The voice is a native-audio voice that can change speaking style on request (whisper, sing, emotions, robot voice).</summary>
+        public bool canVaryVoiceStyle;
+
         /// <summary>True when the user can cut the agent off by speaking.</summary>
         public bool userCanInterruptByVoice;
 
@@ -97,6 +103,7 @@ namespace IVH.Core.IntelligentVirtualAgent
             if (c.hasLipSync) sb.AppendLine("- Your lips move automatically with your voice (audio-driven lip sync). It approximates speech; it is not exact articulation.");
             if (c.hasBlinking) sb.AppendLine("- You blink automatically at random intervals; blinking is not under your control.");
             if (c.hasGaze) sb.AppendLine("- Gaze: you can look at the user (your eyes, and slightly your head, turn toward the user's viewpoint) or let your gaze wander idly ('User' or 'Idle' as 'gaze'). You cannot look at specific objects or people other than the user.");
+            if (c.canVaryVoiceStyle) sb.AppendLine("- Voice: your voice keeps its timbre, but you can change how you speak whenever asked: whisper, speak louder or softer, faster or slower, with emotion (happy, sad, excited, nervous, angry), like a robot, with an accent, or sing a few lines.");
             sb.AppendLine(c.canWalk
                 ? "- Locomotion: you can walk, step back or step aside a few meters when asked (move_agent). You cannot climb, sit, lie down or leave the scene."
                 : "- Locomotion: none. You stand in one place; you cannot walk, step closer, turn around or move away.");
@@ -106,9 +113,11 @@ namespace IVH.Core.IntelligentVirtualAgent
             sb.AppendLine("PERCEPTION:");
             if (c.visionEnabled)
             {
-                string source = c.visionSource == TargetCameraType.WebCam
-                    ? "the user's webcam"
-                    : "a virtual camera at your eyes inside the 3D scene (you see the virtual scene, not the real world)";
+                string source = !string.IsNullOrWhiteSpace(c.visionSourceDescription)
+                    ? c.visionSourceDescription.Trim()
+                    : c.visionSource == TargetCameraType.WebCam
+                        ? "the user's webcam"
+                        : "a virtual camera at your eyes inside the 3D scene (you see the virtual scene, not the real world)";
                 sb.AppendLine($"- Vision: you receive a still image from {source} roughly every {c.visionIntervalSeconds:0.#} s. You see coarse snapshots, not continuous video: you miss fast movements and small or distant details.");
             }
             else
@@ -121,7 +130,11 @@ namespace IVH.Core.IntelligentVirtualAgent
 
             // Hard limits
             sb.AppendLine();
-            sb.AppendLine("THINGS YOU CANNOT DO (unless a matching motion is listed above): touch, grab, hold or hand over objects; point at specific things in the user's room; sit, lie down, kneel or jump; write, type, use sign language or make individual finger gestures; dance or do sports moves; change your appearance, clothes or voice; show tears, blushing or sweat.");
+            sb.AppendLine("THINGS YOU CANNOT DO (unless a matching motion is listed above): touch, grab, hold or hand over objects; point at specific things in the user's room; sit, lie down, kneel or jump; write, type, use sign language or make individual finger gestures; dance or do sports moves; " +
+                (c.canVaryVoiceStyle
+                    ? "change your appearance or clothes, or switch to a different person's voice (your speaking style can change, see Voice above); "
+                    : "change your appearance, clothes or voice; ") +
+                "show tears, blushing or sweat.");
 
             if (!string.IsNullOrWhiteSpace(c.additionalNotes))
             {

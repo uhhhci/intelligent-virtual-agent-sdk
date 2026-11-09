@@ -3,6 +3,60 @@ All notable changes to this package are documented in this file.
 
 ## Unreleased
 
+### Gemini Live: reliable sessions
+- **Reconnect stops the agent at once.** `GeminiLiveAgent.Connect` (the HUD's Reconnect) silences playback, drops the
+  audio already received, stops the greeting and vision routines, and closes the old session before it builds the new
+  prompt. Events of the old session that are still queued are discarded, so the agent no longer finishes its previous
+  sentence after a reconnect. A second click while connecting supersedes the first instead of opening two sessions.
+- **One connection object per attempt.** The wrapper's socket, cancellation and send lock belong to each connection, so
+  a closing connection can no longer misreport its end as a network error of the new one, trigger a stray auto-reconnect,
+  or over-release the shared send lock. Closing never waits on the server for more than half a second.
+- **Vertex location fallback** (`useVertexLocationFallback`, on by default; `vertexFallbackLocations`, empty = all other
+  locations listed for the model). A location that refuses the setup ("Resource exhausted", model not offered) or does
+  not acknowledge it within `setupTimeoutSeconds` is skipped for the next one; `ActiveVertexLocation` reports where the
+  session runs. With `autoReconnect`, a first connect that every location refused is retried with backoff before
+  `OnFatalError`.
+- **Session resumption and connection recycling** (`enableSessionResumption`, off by default). The setup asks for
+  resumption handles; after a dropped connection (with `autoReconnect`) or a server `goAway` (Vertex recycles
+  connections after about ten minutes; new `OnGoAway` event) the wrapper reopens with the last handle once the current
+  reply has been sent, so the conversation continues with its full history. `IsResumedSession` and
+  `IsAutomaticReconnect` tell the agent not to greet again; if a session cannot be resumed, the agent briefs the new one
+  with the last lines and apologises in one sentence. Verified on Vertex v1 with `gemini-live-2.5-flash-native-audio`.
+- **Server-side VAD settings**: `startOfSpeechSensitivity`, `endOfSpeechSensitivity`, `silenceDurationMs` (left out of
+  the setup unless set).
+- `IsSessionReady` (setup acknowledged) gates `SendTextMessage`, `SendAudioChunk` and `SendImage`, so nothing is sent
+  before the setup frame is answered. `ModelTurnInProgress` reports whether Gemini is generating a reply.
+- Event handlers run outside the queue lock and one at a time, so a throwing subscriber no longer stalls the queue.
+
+### GeminiLiveAgent: prompt and runtime
+- **Concise replies** (`conciseReplies`, on by default, `maxSentencesPerReply` = 3): spoken answers stay at a few short
+  sentences unless the user asks for more. The proactive answer style no longer asks for "substantive" detail when it
+  is on.
+- **`mirrorUserLanguage`** (on by default): answer in the language the user last spoke and switch immediately when they
+  switch, e.g. from English to German in the same session.
+- **`allowExpressiveSpeech`** (on by default, Gemini voice only): the agent whispers, sings a few lines, sounds sad or
+  excited, speaks like a robot or with an accent when asked, instead of declining. The capability description no
+  longer says the voice cannot change.
+- **Vision guidance**: with vision on, the prompt says what the camera shows (`visionSourceDescription`), how to use
+  the images (react to people, answer "what do you see?"), not to invent what it sees, and never to guess identities.
+  Turning vision on starts the webcam if it was not running; the capture loop survives reconnects.
+- **Microphone**: a configured device that is missing (e.g. an unplugged wireless receiver) falls back to the first
+  device with a note in the log instead of hanging in `Microphone.Start`; a device picked in the HUD takes effect on the
+  next Reconnect; audio recorded while no session was ready is skipped.
+- **Transcript**: speaker labels `agentTranscriptLabel` (default: the agent's name instead of "Gemini") and
+  `userTranscriptLabel`; the log keeps its last 12k characters so long sessions keep rendering.
+
+### HUD
+- The transcription panel gets a title bar to drag it, like the settings panel. Both panels remember their position
+  and size (`UIPanelLayoutMemory`, PlayerPrefs) and are moved back on screen, shrunk if needed, when the screen is
+  smaller than the saved layout.
+- `UITextSizeControl`: A- / A+ buttons for a text's font size, remembered.
+- `GeminiLiveAgentUIControls`: optional shortcuts (`toggleHudKey`, `toggleTranscriptKey`, `toggleSettingsKey`,
+  `reconnectKey`, `interruptKey`, `startWithHudHidden`). Buttons and toggles are deselected after a click, so Space or
+  Enter cannot trigger Reconnect again or switch vision off by accident.
+- The Conversation tab of the agent inspector shows the reply-style options, the Vision tab the camera description,
+  the UI tab the transcript labels.
+
 ### Gemini Live: 3.8 Live model and Vertex location
 - **Gemini 3.8 Live.** New `GeminiModelType.Live38VertexAI` and `Live38GoogleAI` (`gemini-3.8-live`). The
   wrapper leaves `thinking_config` out for 3.8 (the server closes the session on it, 1007), and sends

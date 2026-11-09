@@ -115,6 +115,17 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         }
     }
 
+    /// <summary>How readily Gemini's server-side voice activity detection decides that speech started or ended.</summary>
+    public enum GeminiVadSensitivity
+    {
+        /// <summary>Leave the setting out; the server uses its default.</summary>
+        ServerDefault,
+        /// <summary>Less eager: needs clearer speech to start a turn (noisy rooms), or waits longer before ending one.</summary>
+        Low,
+        /// <summary>More eager: starts a turn on quieter speech, or ends one sooner after the speaker stops.</summary>
+        High
+    }
+
     public class GeminiRealtimeWrapper : MonoBehaviour
     {
         private const string LogTag = "GeminiRealtime";
@@ -247,6 +258,14 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// <summary>Gemini finished its turn (<c>serverContent.turnComplete</c>): every word of the reply has been sent.</summary>
         public Action OnTurnComplete;
 
+        /// <summary>
+        /// Fired on the main thread when the server announces it will close this connection soon
+        /// (<c>goAway</c>; Live API connections are recycled after about ten minutes). Parameter: seconds left.
+        /// With <see cref="enableSessionResumption"/> on, the wrapper moves the session to a new
+        /// connection by itself once the current reply has finished.
+        /// </summary>
+        public Action<float> OnGoAway;
+
         [Header("Auto-Reconnect (opt-in)")]
         /// <summary>If true, attempts to re-establish the session after unexpected disconnects. Defaults to false for v2.3.3 compatibility.</summary>
         [Tooltip("When true, the wrapper will automatically re-open the session after server-side or network disconnects. Off by default.")]
@@ -258,25 +277,111 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// <summary>Base delay (seconds) for exponential backoff between reconnect attempts. Cap = 30s.</summary>
         [Range(0.1f, 10f)] public float reconnectBaseDelaySeconds = 1.0f;
 
+        [Header("Session Resilience")]
+        /// <summary>
+        /// Vertex only: when the selected location refuses the session or does not acknowledge it in time
+        /// (for example "Resource exhausted", which means that location is out of shared capacity), the
+        /// wrapper tries <see cref="vertexFallbackLocations"/> in order before reporting a failure.
+        /// </summary>
+        [Tooltip("Vertex only: if the location refuses the session (e.g. 'Resource exhausted') or does not answer, try the fallback locations in order before failing.")]
+        public bool useVertexLocationFallback = true;
+
+        /// <summary>
+        /// Locations tried after <see cref="vertexLocation"/> when <see cref="useVertexLocationFallback"/> is on.
+        /// Empty: every other location listed for the model in <see cref="VertexLiveLocations"/>, in list order.
+        /// </summary>
+        [Tooltip("Locations tried, in order, after the Vertex Location. Empty = every other location that serves the selected model.")]
+        public List<string> vertexFallbackLocations = new List<string>();
+
+        /// <summary>
+        /// Asks the server for session-resumption handles. When the connection drops or is recycled
+        /// (<see cref="OnGoAway"/>), the wrapper reopens it with the last handle, so the conversation
+        /// continues with its full history and the agent does not greet again. Needs
+        /// <see cref="autoReconnect"/> for unexpected drops; a <c>goAway</c> is handled either way.
+        /// </summary>
+        [Tooltip("Resume the same conversation on a new connection after a drop or a server-side connection recycle (~10 min), instead of starting over.")]
+        public bool enableSessionResumption = false;
+
+        /// <summary>Server-side VAD: how readily speech is detected as the start of a user turn. Low helps in noisy rooms.</summary>
+        [Tooltip("How readily the server detects the start of user speech. Low = needs clearer speech (noisy rooms). ServerDefault leaves it to Gemini.")]
+        public GeminiVadSensitivity startOfSpeechSensitivity = GeminiVadSensitivity.ServerDefault;
+
+        /// <summary>Server-side VAD: how readily silence is detected as the end of a user turn. High = answers sooner after the user stops.</summary>
+        [Tooltip("How readily the server decides the user stopped speaking. High = replies sooner after a pause. ServerDefault leaves it to Gemini.")]
+        public GeminiVadSensitivity endOfSpeechSensitivity = GeminiVadSensitivity.ServerDefault;
+
+        /// <summary>Server-side VAD: silence (ms) that ends a user turn. 0 = server default.</summary>
+        [Tooltip("Milliseconds of silence that end the user's turn. 0 = server default.")]
+        [Range(0, 3000)] public int silenceDurationMs = 0;
+
         /// <summary>When true, logs outgoing setup/debug frames at Info level. Backed by <see cref="Utils.Logging.IVALogger"/>.</summary>
         public bool verboseLogging = true;
 
-        /// <summary>True while the WebSocket is open. Does not imply the session setup is complete — see <see cref="OnSetupComplete"/>.</summary>
-        public bool IsConnected => _webSocket != null && _webSocket.State == WebSocketState.Open;
+        /// <summary>True while the WebSocket is open. Does not imply the session setup is complete — see <see cref="IsSessionReady"/>.</summary>
+        public bool IsConnected { get { var s = _session; return s != null && !s.closedByClient && s.socket.State == WebSocketState.Open; } }
 
-        private ClientWebSocket _webSocket;
-        private CancellationTokenSource _cancellationTokenSource;
+        /// <summary>True once the open session has acknowledged its setup and accepts audio, video and text.</summary>
+        public bool IsSessionReady { get { var s = _session; return s != null && s.acknowledged && !s.closedByClient && s.socket.State == WebSocketState.Open; } }
+
+        /// <summary>True while Gemini is generating a reply (from its first audio or text until <c>turnComplete</c> or an interruption).</summary>
+        public bool ModelTurnInProgress { get; private set; }
+
+        /// <summary>
+        /// Set when <see cref="OnSetupComplete"/> fires: true if this session resumed the previous one
+        /// (same conversation, full history), so the agent should not greet again.
+        /// </summary>
+        public bool IsResumedSession { get; private set; }
+
+        /// <summary>
+        /// Set when <see cref="OnSetupComplete"/> fires: true if the wrapper opened this session by itself
+        /// (auto-reconnect or connection recycle) rather than through <see cref="ConnectAsync"/>.
+        /// </summary>
+        public bool IsAutomaticReconnect { get; private set; }
+
+        /// <summary>The Vertex location of the current session (after any fallback). Empty for AI Studio.</summary>
+        public string ActiveVertexLocation { get; private set; } = "";
+
+        /// <summary>
+        /// One WebSocket connection and everything that belongs to it. Each connection has its own
+        /// socket, cancellation and send lock, so a connection that is being replaced can never send on,
+        /// close, or report events for the one that replaces it.
+        /// </summary>
+        private sealed class SessionAttempt
+        {
+            public ClientWebSocket socket;
+            public CancellationTokenSource cts;
+            public readonly SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
+            public string location;
+            public bool resuming;
+            public bool automatic;
+            public int conversation;
+            public volatile bool acknowledged;
+            public volatile bool closedByClient;
+            public bool goAwayHandled;
+            /// <summary>Completed with null when setup is acknowledged, or with the reason it failed.</summary>
+            public readonly TaskCompletionSource<string> setupOutcome =
+                new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        private SessionAttempt _session;
 
         // Thread Safety
         private readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
         private readonly object _queueLock = new object();
-        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+
+        /// <summary>Bumped by every connection attempt; an attempt that sees a newer value stops.</summary>
+        private int _attemptEpoch;
+        /// <summary>Bumped when a new conversation starts (ConnectAsync) or ends (DisconnectAsync). Queued
+        /// events of an older conversation are dropped, so a reconnect cuts off the old reply at once.</summary>
+        private int _conversation;
+        /// <summary>The conversation that most recently had an acknowledged session (-1: none yet).</summary>
+        private int _establishedConversation = -1;
 
         // Reconnect state
         private bool _userRequestedDisconnect;
-        private bool _disconnectFired;
-        private bool _setupAcknowledged;
+        private bool _reconnecting;
         private int _reconnectAttempt;
+        private string _resumeHandle;
         private string _lastSystemInstruction;
         private string _lastVoiceName;
         private bool _lastHasLocomotion;
@@ -334,22 +439,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             _ => "gemini-2.5-flash-native-audio-preview-12-2025"
         };
 
-        private string GetUrl(string projectId = "")
-        {
-            if (IsVertexModel())
-            {
-                string url = string.Format(VERTEX_URL_TEMPLATE, VertexHost(VertexLocation));
-                IVALogger.Info(LogTag, url);
-                return url;
-            }
-            else
-            {
-                // Standard URL
-                string baseUrl = V1BETA_URL;
-                return $"{baseUrl}?key={apiKey}";
-            }
-        }
-
         private void Awake()
         {
             // Only need API key if NOT using Vertex
@@ -357,17 +446,39 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 apiKey = GeneralModelHelper.GetGeminiApiKey();
         }
 
+        private readonly List<Action> _dispatchBuffer = new List<Action>();
+
         private void Update()
         {
             lock (_queueLock)
             {
-                while (_mainThreadQueue.Count > 0) _mainThreadQueue.Dequeue().Invoke();
+                _dispatchBuffer.Clear();
+                while (_mainThreadQueue.Count > 0) _dispatchBuffer.Add(_mainThreadQueue.Dequeue());
             }
+            // Invoked outside the lock and one by one, so a throwing subscriber cannot stall the queue.
+            foreach (var action in _dispatchBuffer)
+            {
+                try { action(); }
+                catch (Exception e) { IVALogger.Error(LogTag, "Event handler threw", e); }
+            }
+            _dispatchBuffer.Clear();
+        }
+
+        private void OnDestroy()
+        {
+            _userRequestedDisconnect = true;
+            _conversation++;
+            _attemptEpoch++;
+            var s = _session;
+            _session = null;
+            if (s != null) _ = CloseAttemptAsync(s);
         }
 
         /// <summary>
         /// Opens a Gemini Live session with the built-in <c>update_avatar_state</c> tool (and optionally
         /// <c>move_agent</c>). For custom tool schemas, use <see cref="ConnectWithDynamicToolsAsync"/>.
+        /// Always starts a new conversation: a previous session is closed first and none of its pending
+        /// audio, text or tool calls reach the subscribers any more.
         /// </summary>
         /// <param name="systemInstruction">Persona / rules prompt delivered at session setup.</param>
         /// <param name="voiceName">Gemini prebuilt voice name (e.g. "Puck", "Charon").</param>
@@ -378,23 +489,146 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             _lastVoiceName = voiceName;
             _lastHasLocomotion = hasLocomotion;
             _usedDynamicToolsConnect = false;
-            _userRequestedDisconnect = false;
-            _disconnectFired = false;
-
-            await DisconnectInternalAsync(userRequested: false, fireEvent: false);
-
-            var endpoint = await ResolveEndpointAsync();
-            if (!endpoint.ok) return;
-
-            if (!await OpenSocketAsync(endpoint.uri, endpoint.modelId)) return;
-
-            await SendSetupWithGenericTool(endpoint.modelId, systemInstruction, voiceName, hasLocomotion);
+            await StartNewConversationAsync();
         }
 
         /// <summary>
-        /// Resolves the endpoint URI and the fully-qualified model id for the selected backend,
-        /// acquiring a fresh Vertex OAuth token when needed. Both connect paths go through this, so
-        /// the Vertex handshake is identical whether or not dynamic tools are in play.
+        /// Opens a Gemini Live session with a caller-supplied set of tool declarations in addition to
+        /// the built-in <c>update_avatar_state</c>. Pair with <see cref="OnGenericToolCallReceived"/>
+        /// and <see cref="SendGenericToolResponseAsync"/> to service the calls.
+        /// </summary>
+        /// <param name="systemInstruction">Persona / rules prompt delivered at session setup.</param>
+        /// <param name="voiceName">Gemini prebuilt voice name.</param>
+        /// <param name="dynamicToolsDeclaration">Array of function declaration JObjects, Gemini tool schema.</param>
+        public async Task ConnectWithDynamicToolsAsync(string systemInstruction, string voiceName, JArray dynamicToolsDeclaration)
+        {
+            _lastSystemInstruction = systemInstruction;
+            _lastVoiceName = voiceName;
+            _lastDynamicTools = dynamicToolsDeclaration;
+            _usedDynamicToolsConnect = true;
+            await StartNewConversationAsync();
+        }
+
+        private async Task StartNewConversationAsync()
+        {
+            _userRequestedDisconnect = false;
+            _resumeHandle = null;
+            _reconnectAttempt = 0;
+
+            var result = await OpenSessionAsync(resume: false, automatic: false, reportFailure: !autoReconnect);
+            // With auto-reconnect, a first connect that every location refused is retried with backoff
+            // (capacity usually comes back within seconds) before it is reported as fatal.
+            if (result == OpenResult.Failed && autoReconnect && !_userRequestedDisconnect) _ = TryReconnectAsync();
+        }
+
+        private enum OpenResult { Established, Failed, AuthFailed, Superseded }
+
+        /// <summary>
+        /// Closes the current connection and opens a new one, trying the Vertex fallback locations when the
+        /// first one refuses. <paramref name="resume"/> reuses the last session-resumption handle;
+        /// <paramref name="automatic"/> marks a reconnect the wrapper started by itself, which keeps the
+        /// current conversation (its queued events are still delivered).
+        /// </summary>
+        /// <returns><see cref="OpenResult.Superseded"/> when a newer connect or a disconnect took over meanwhile:
+        /// the caller must then not retry, or it would replace the newer session.</returns>
+        private async Task<OpenResult> OpenSessionAsync(bool resume, bool automatic, bool reportFailure)
+        {
+            int epoch = ++_attemptEpoch;
+            if (!automatic)
+            {
+                _conversation++;
+                lock (_queueLock) _mainThreadQueue.Clear();
+            }
+            int conversation = _conversation;
+            ModelTurnInProgress = false;
+
+            var previous = _session;
+            _session = null;
+            if (previous != null) await CloseAttemptAsync(previous);
+            if (epoch != _attemptEpoch) return OpenResult.Superseded;
+
+            var auth = await ResolveAuthAsync();
+            if (epoch != _attemptEpoch) return OpenResult.Superseded;
+            if (!auth.ok)
+            {
+                FailFast(auth.error, DisconnectReason.AuthFailure);
+                return OpenResult.AuthFailed;
+            }
+
+            List<string> locations = LocationsToTry();
+            string lastFailure = null;
+            for (int i = 0; i < locations.Count; i++)
+            {
+                string location = locations[i];
+                string handle = resume ? _resumeHandle : null;
+
+                string failure = await TryOpenAsync(epoch, conversation, location, handle, automatic, auth);
+                if (epoch != _attemptEpoch) return OpenResult.Superseded;
+                if (failure == null) return OpenResult.Established;
+
+                if (handle != null)
+                {
+                    // The handle may have expired or belong to another location: start over with a fresh
+                    // session instead of failing.
+                    IVALogger.Warn(LogTag, $"Could not resume the session ({failure}); starting a new session.");
+                    _resumeHandle = null;
+                    failure = await TryOpenAsync(epoch, conversation, location, null, automatic, auth);
+                    if (epoch != _attemptEpoch) return OpenResult.Superseded;
+                    if (failure == null) return OpenResult.Established;
+                }
+
+                lastFailure = failure;
+                if (i + 1 < locations.Count)
+                    IVALogger.Warn(LogTag, $"Vertex location '{location}' did not start the session ({failure}). Trying '{locations[i + 1]}'.");
+            }
+
+            string where = IsVertexModel()
+                ? $"'{GetModelString()}' in Vertex location(s) {string.Join(", ", locations)}"
+                : $"'{GetModelString()}'";
+            var error = new ServiceConnectionException($"Gemini did not start a session for {where}: {lastFailure}");
+            if (reportFailure) FailFast(error, DisconnectReason.ServerClosed);
+            else IVALogger.Warn(LogTag, error.Message);
+            return OpenResult.Failed;
+        }
+
+        /// <summary>The primary location first, then the fallbacks (Vertex); a single null entry for AI Studio.</summary>
+        private List<string> LocationsToTry()
+        {
+            var result = new List<string>();
+            if (!IsVertexModel()) { result.Add(null); return result; }
+
+            result.Add(VertexLocation);
+            if (!useVertexLocationFallback) return result;
+
+            IEnumerable<string> fallbacks = vertexFallbackLocations != null && vertexFallbackLocations.Count > 0
+                ? vertexFallbackLocations
+                : ListedCodes(selectedModel);
+            foreach (var raw in fallbacks)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                string code = raw.Trim().ToLowerInvariant();
+                if (!result.Contains(code)) result.Add(code);
+            }
+            return result;
+        }
+
+        private static IEnumerable<string> ListedCodes(GeminiModelType model)
+        {
+            foreach (var location in VertexLiveLocations.For(model)) yield return location.Code;
+        }
+
+        private readonly struct AuthInfo
+        {
+            public readonly bool ok;
+            public readonly string accessToken;
+            public readonly string projectId;
+            public readonly IVAException error;
+            public AuthInfo(bool ok, string accessToken, string projectId, IVAException error)
+            { this.ok = ok; this.accessToken = accessToken; this.projectId = projectId; this.error = error; }
+        }
+
+        /// <summary>
+        /// Gets a fresh Vertex OAuth token (service account) or the AI Studio API key.
         /// </summary>
         /// <remarks>
         /// Vertex needs two things the AI Studio path does not: an <c>Authorization: Bearer</c>
@@ -403,107 +637,107 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// Omitting either leaves the socket open but the session never acknowledges setup, which
         /// surfaces to the user as a connect that hangs forever.
         /// </remarks>
-        private async Task<(bool ok, string uri, string modelId)> ResolveEndpointAsync()
+        private async Task<AuthInfo> ResolveAuthAsync()
         {
-            string modelId = GetModelString();
-
             if (IsVertexModel())
             {
                 try
                 {
-                    if (!VertexLiveLocations.IsListed(selectedModel, VertexLocation))
-                        IVALogger.Warn(LogTag, $"'{modelId}' is not listed for Vertex location '{VertexLocation}'. Connecting anyway; " +
-                            "if Google refuses the session (1008, model not found), pick a location from the Vertex Location list.");
-
                     IVALogger.Info(LogTag, "Authenticating with Vertex AI Service Account...");
                     // Looks in C:\Users\[USER]\.aiapi\service_account.json
                     var authResult = await VertexAuthHelper.GetAccessTokenFromUserDir("service_account.json");
-
-                    this.accessToken = authResult.accessToken;
-
-                    // Vertex requires FULL resource path for the model
-                    modelId = $"projects/{authResult.projectId}/locations/{VertexLocation}/publishers/google/models/{modelId}";
-                    return (true, GetUrl(authResult.projectId), modelId);
+                    accessToken = authResult.accessToken;
+                    return new AuthInfo(true, authResult.accessToken, authResult.projectId, null);
                 }
                 catch (Exception e)
                 {
-                    FailFast(new AuthException(
+                    return new AuthInfo(false, null, null, new AuthException(
                         "Vertex AI authentication failed. Check that ~/.aiapi/service_account.json exists, " +
-                        "is a valid service-account key, and that the account has the 'Vertex AI User' role.", e),
-                        DisconnectReason.AuthFailure);
-                    return (false, null, null);
+                        "is a valid service-account key, and that the account has the 'Vertex AI User' role.", e));
                 }
             }
 
             if (string.IsNullOrEmpty(apiKey)) apiKey = GeneralModelHelper.GetGeminiApiKey();
             if (string.IsNullOrEmpty(apiKey))
             {
-                FailFast(new AuthException(
-                    "Gemini API key missing. Set it via 'IVA SDK / Setup Wizard / Credentials', which writes ~/.aiapi/auth.json."),
-                    DisconnectReason.AuthFailure);
-                return (false, null, null);
+                return new AuthInfo(false, null, null, new AuthException(
+                    "Gemini API key missing. Set it via 'IVA SDK / Setup Wizard / Credentials', which writes ~/.aiapi/auth.json."));
             }
-
-            return (true, GetUrl(), modelId);
+            return new AuthInfo(true, null, null, null);
         }
 
         /// <summary>
-        /// Opens the WebSocket to <paramref name="uri"/>, attaching the Vertex bearer header when
-        /// required, and starts the receive loop. Returns false (and reports a fatal error) on failure.
+        /// Opens one connection to <paramref name="location"/>, sends the setup and waits for the
+        /// server's <c>setupComplete</c>. Returns null on success, otherwise why it failed (the
+        /// connection is then closed again).
         /// </summary>
-        private async Task<bool> OpenSocketAsync(string uri, string modelId)
+        private async Task<string> TryOpenAsync(int epoch, int conversation, string location, string resumeHandle, bool automatic, AuthInfo auth)
         {
-            _webSocket = new ClientWebSocket();
-
-            // --- HEADER INJECTION ---
+            string modelId = GetModelString();
+            string uri;
             if (IsVertexModel())
             {
-                _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
+                if (!VertexLiveLocations.IsListed(selectedModel, location))
+                    IVALogger.Warn(LogTag, $"'{modelId}' is not listed for Vertex location '{location}'. Connecting anyway; " +
+                        "if Google refuses the session (1008, model not found), pick a location from the Vertex Location list.");
+                modelId = $"projects/{auth.projectId}/locations/{location}/publishers/google/models/{modelId}";
+                uri = string.Format(VERTEX_URL_TEMPLATE, VertexHost(location));
+            }
+            else
+            {
+                uri = $"{V1BETA_URL}?key={apiKey}";
             }
 
-            _cancellationTokenSource = new CancellationTokenSource();
+            var attempt = new SessionAttempt
+            {
+                socket = new ClientWebSocket(),
+                cts = new CancellationTokenSource(),
+                location = location ?? "",
+                resuming = resumeHandle != null,
+                automatic = automatic,
+                conversation = conversation,
+            };
+            if (IsVertexModel()) attempt.socket.Options.SetRequestHeader("Authorization", $"Bearer {auth.accessToken}");
+
+            _session = attempt;
+            ActiveVertexLocation = location ?? "";
 
             try
             {
-                IVALogger.Info(LogTag, $"Connecting to {modelId} ...");
-                await _webSocket.ConnectAsync(new Uri(uri), CancellationToken.None);
+                IVALogger.Info(LogTag, IsVertexModel()
+                    ? $"Connecting to {GetModelString()} in {location}{(attempt.resuming ? " (resuming session)" : "")} ..."
+                    : $"Connecting to {GetModelString()}{(attempt.resuming ? " (resuming session)" : "")} ...");
+                using (var connectTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(setupTimeoutSeconds)))
+                    await attempt.socket.ConnectAsync(new Uri(uri), connectTimeout.Token);
             }
             catch (Exception e)
             {
-                FailFast(new ServiceConnectionException($"Could not open a Gemini Live session: {e.Message}", e),
-                    DisconnectReason.NetworkError);
-                return false;
+                if (_session == attempt) _session = null;
+                await CloseAttemptAsync(attempt);
+                return $"could not open the connection: {e.Message}";
             }
 
-            _ = ReceiveLoop();
-            _ = WatchForSetupAckAsync();
-            return true;
-        }
+            if (epoch != _attemptEpoch)
+            {
+                if (_session == attempt) _session = null;
+                await CloseAttemptAsync(attempt);
+                return "superseded";
+            }
 
-        /// <summary>
-        /// Fails the session if the server accepts the socket but never sends <c>setupComplete</c>.
-        /// A rejected setup message is not always answered with a close frame — the socket can simply
-        /// sit open — and without this the agent waits forever on a session that will never start.
-        /// </summary>
-        private async Task WatchForSetupAckAsync()
-        {
-            _setupAcknowledged = false;
-            var socket = _webSocket;
+            _ = ReceiveLoop(attempt);
+            await SendJsonAsync(attempt, BuildSetupMessage(modelId, resumeHandle));
 
-            try { await Task.Delay(TimeSpan.FromSeconds(setupTimeoutSeconds)); } catch { return; }
+            var winner = await Task.WhenAny(attempt.setupOutcome.Task, Task.Delay(TimeSpan.FromSeconds(setupTimeoutSeconds)));
+            string failure = winner == attempt.setupOutcome.Task
+                ? attempt.setupOutcome.Task.Result
+                : $"no setup acknowledgment within {setupTimeoutSeconds:0}s";
 
-            // Only act on the session we were watching — a reconnect may have replaced it.
-            if (_setupAcknowledged || _userRequestedDisconnect) return;
-            if (socket == null || socket != _webSocket || socket.State != WebSocketState.Open) return;
-
-            FailFast(new ServiceConnectionException(
-                $"Gemini accepted the connection but did not acknowledge session setup within {setupTimeoutSeconds:0}s. " +
-                (IsVertexModel()
-                    ? $"For Vertex, verify the service account has the 'Vertex AI User' role, that the Vertex AI API is enabled on the project, and that '{GetModelString()}' is offered in location '{VertexLocation}'."
-                    : "Check the API key and whether the free-tier quota for this model is exhausted.")),
-                DisconnectReason.ServerClosed);
-
-            await DisconnectInternalAsync(userRequested: false, fireEvent: false);
+            if (failure != null)
+            {
+                if (_session == attempt) _session = null;
+                await CloseAttemptAsync(attempt);
+            }
+            return failure;
         }
 
         /// <summary>
@@ -514,44 +748,60 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         private void FailFast(IVAException error, DisconnectReason reason)
         {
             IVALogger.Error(LogTag, error.Message, error);
-
-            bool fireDisconnect = !_disconnectFired;
-            _disconnectFired = true;
-
+            int conversation = _conversation;
             EnqueueMainThread(() =>
             {
-                if (fireDisconnect) OnDisconnected?.Invoke(reason);
+                if (conversation != _conversation) return;
+                OnDisconnected?.Invoke(reason);
                 OnFatalError?.Invoke(error);
             });
         }
 
-        /// <summary>Closes the WebSocket and releases all session state. Safe to call when already disconnected.</summary>
+        /// <summary>
+        /// Closes the WebSocket and releases all session state. Safe to call when already disconnected.
+        /// Events of the closed session that are still queued are dropped.
+        /// </summary>
         public async Task DisconnectAsync()
         {
             _userRequestedDisconnect = true;
-            await DisconnectInternalAsync(userRequested: true, fireEvent: true);
+            _resumeHandle = null;
+            _conversation++;
+            _attemptEpoch++;
+            ModelTurnInProgress = false;
+            lock (_queueLock) _mainThreadQueue.Clear();
+
+            var s = _session;
+            _session = null;
+            if (s == null) return;
+            await CloseAttemptAsync(s);
+            EnqueueMainThread(() => OnDisconnected?.Invoke(DisconnectReason.UserRequested));
         }
 
-        private async Task DisconnectInternalAsync(bool userRequested, bool fireEvent)
+        /// <summary>
+        /// Closes one connection quickly: a close frame if the socket is idle, then the receive loop is
+        /// cancelled and the socket aborted. Never waits on the server for more than half a second.
+        /// </summary>
+        private static async Task CloseAttemptAsync(SessionAttempt a)
         {
-            if (_webSocket != null)
+            if (a == null || a.closedByClient) return;
+            a.closedByClient = true;
+            a.setupOutcome.TrySetResult("closed by client");
+            try
             {
-                _cancellationTokenSource?.Cancel();
-                if (_sendLock.CurrentCount == 0) _sendLock.Release();
-
-                try { await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
-                catch { }
-
-                _webSocket.Dispose();
-                _webSocket = null;
+                if (a.socket.State == WebSocketState.Open && await a.sendLock.WaitAsync(300))
+                {
+                    try
+                    {
+                        using (var t = new CancellationTokenSource(500))
+                            await a.socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Closing", t.Token);
+                    }
+                    finally { a.sendLock.Release(); }
+                }
             }
-
-            if (fireEvent && !_disconnectFired)
-            {
-                _disconnectFired = true;
-                var reason = userRequested ? DisconnectReason.UserRequested : DisconnectReason.Unknown;
-                EnqueueMainThread(() => OnDisconnected?.Invoke(reason));
-            }
+            catch { /* the socket is aborted below anyway */ }
+            try { a.cts.Cancel(); } catch { }
+            try { a.socket.Abort(); } catch { }
+            try { a.socket.Dispose(); } catch { }
         }
 
         /// <summary>
@@ -565,7 +815,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         /// disabled thinking — so an agent's latency and maximum session length silently depended on
         /// whether it happened to have a tool attached.
         /// </remarks>
-        private JObject BuildSetupContent(string model, string systemPrompt, string voice)
+        private JObject BuildSetupContent(string model, string systemPrompt, string voice, string resumeHandle = null)
         {
             var generationConfig = new JObject();
             generationConfig["response_modalities"] = new JArray(responseModality == GeminiResponseModality.Text ? "TEXT" : "AUDIO");
@@ -615,13 +865,43 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 setupContent["inputAudioTranscription"] = new JObject();
             }
 
+            // Session resumption (verified on Vertex v1 with gemini-live-2.5-flash-native-audio): an empty
+            // object asks for resumption handles, a handle resumes that session with its full history.
+            if (enableSessionResumption || resumeHandle != null)
+            {
+                setupContent["sessionResumption"] = resumeHandle != null
+                    ? new JObject { ["handle"] = resumeHandle }
+                    : new JObject();
+            }
+
+            var activityDetection = new JObject();
+            if (startOfSpeechSensitivity != GeminiVadSensitivity.ServerDefault)
+                activityDetection["startOfSpeechSensitivity"] = startOfSpeechSensitivity == GeminiVadSensitivity.Low ? "START_SENSITIVITY_LOW" : "START_SENSITIVITY_HIGH";
+            if (endOfSpeechSensitivity != GeminiVadSensitivity.ServerDefault)
+                activityDetection["endOfSpeechSensitivity"] = endOfSpeechSensitivity == GeminiVadSensitivity.Low ? "END_SENSITIVITY_LOW" : "END_SENSITIVITY_HIGH";
+            if (silenceDurationMs > 0)
+                activityDetection["silenceDurationMs"] = silenceDurationMs;
+            if (activityDetection.Count > 0)
+                setupContent["realtimeInputConfig"] = new JObject { ["automaticActivityDetection"] = activityDetection };
+
             return setupContent;
         }
 
-        private async Task SendSetupWithGenericTool(string model, string systemPrompt, string voice, bool hasLocomotion=false)
+        /// <summary>The full <c>setup</c> message for the stored connect request (built-in or dynamic tools).</summary>
+        private JObject BuildSetupMessage(string model, string resumeHandle)
         {
-            var setupContent = BuildSetupContent(model, systemPrompt, voice);
+            var setupContent = BuildSetupContent(model, _lastSystemInstruction, _lastVoiceName, resumeHandle);
+            setupContent["tools"] = _usedDynamicToolsConnect
+                ? BuildDynamicTools(_lastDynamicTools)
+                : BuildGenericTools(_lastHasLocomotion);
 
+            var setupData = new JObject { ["setup"] = setupContent };
+            if (verboseLogging) IVALogger.Info(LogTag, $"Sending Setup: {setupData.ToString(Formatting.None)}");
+            return setupData;
+        }
+
+        private static JArray BuildGenericTools(bool hasLocomotion)
+        {
             var toolsArray = new JArray();
             var tool = new JObject();
             var avatarFunc = new JObject
@@ -681,82 +961,96 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
             }
 
             toolsArray.Add(tool);
-            setupContent["tools"] = toolsArray;
-
-            var setupData = new JObject { ["setup"] = setupContent };
-
-            if (verboseLogging) IVALogger.Info(LogTag, $"Sending Setup: {setupData.ToString(Formatting.None)}");
-
-            await SendJsonAsync(setupData);
+            return toolsArray;
         }
 
-        /// <summary>Sends a text turn to Gemini as if typed by the user. No-op when disconnected.</summary>
+        private static JArray BuildDynamicTools(JArray dynamicFunctionDeclarations)
+        {
+            var functionDeclarations = new JArray();
+            functionDeclarations.Add(new JObject {
+                ["name"] = "update_avatar_state",
+                ["description"] = "Change the avatar's physical behavior.",
+                ["parameters"] = JObject.Parse("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"emotion\":{\"type\":\"string\"},\"gaze\":{\"type\":\"string\"}},\"required\":[\"action\",\"emotion\",\"gaze\"]}")
+            });
+
+            if (dynamicFunctionDeclarations != null)
+                foreach (var dt in dynamicFunctionDeclarations) functionDeclarations.Add(dt.DeepClone());
+
+            var toolWrapper = new JObject { ["function_declarations"] = functionDeclarations };
+            return new JArray(toolWrapper);
+        }
+
+        /// <summary>Sends a text turn to Gemini as if typed by the user. No-op until the session is ready.</summary>
         public void SendTextMessage(string text)
         {
-            if (!IsConnected) return;
+            if (!IsSessionReady) return;
             var msg = new { client_content = new { turns = new[] { new { role = "user", parts = new[] { new { text = text } } } }, turn_complete = true } };
-            _ = SendJsonAsync(msg);
+            _ = SendJsonAsync(_session, msg);
         }
 
-        /// <summary>Streams a PCM audio chunk to Gemini. Expected format: 16-bit signed little-endian mono at 16 kHz.</summary>
+        /// <summary>Streams a PCM audio chunk to Gemini. Expected format: 16-bit signed little-endian mono at 16 kHz. Dropped until the session is ready.</summary>
         public void SendAudioChunk(byte[] pcmData)
         {
-            if (!IsConnected) return;
+            if (!IsSessionReady) return;
             string data = Convert.ToBase64String(pcmData);
             // Gemini 3.x Live takes the typed `audio` field; the 2.5 models keep the deprecated media_chunks they were validated with.
             object msg = IsGemini3Live()
                 ? new { realtime_input = new { audio = new { mime_type = "audio/pcm;rate=16000", data } } }
                 : (object)new { realtime_input = new { media_chunks = new[] { new { mime_type = "audio/pcm", data } } } };
-            _ = SendJsonAsync(msg);
+            _ = SendJsonAsync(_session, msg);
         }
 
-        /// <summary>Streams a JPEG-encoded image frame to Gemini for multimodal reasoning.</summary>
+        /// <summary>Streams a JPEG-encoded image frame to Gemini for multimodal reasoning. Dropped until the session is ready.</summary>
         public void SendImage(byte[] imageData)
         {
-            if (!IsConnected) return;
+            if (!IsSessionReady) return;
             string data = Convert.ToBase64String(imageData);
             // Gemini 3.x Live reads media_chunks as audio and closes the session on a JPEG there (1007); frames go in `video`.
             object msg = IsGemini3Live()
                 ? new { realtime_input = new { video = new { mime_type = "image/jpeg", data } } }
                 : (object)new { realtime_input = new { media_chunks = new[] { new { mime_type = "image/jpeg", data } } } };
-            _ = SendJsonAsync(msg);
+            _ = SendJsonAsync(_session, msg);
         }
 
-
-        private async Task SendToolResponse(string id, string functionName = "update_avatar_state")
+        private Task SendToolResponse(SessionAttempt a, string id, string functionName = "update_avatar_state")
         {
             var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = functionName, response = new { status = "ok" } } } } };
-            await SendJsonAsync(msg);
+            return SendJsonAsync(a, msg);
         }
 
-        private async Task SendJsonAsync(object data)
+        private static readonly JsonSerializerSettings SendSettings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
+
+        /// <summary>Sends one frame on <paramref name="a"/>. Frames for a closed or replaced connection are dropped.</summary>
+        private async Task SendJsonAsync(SessionAttempt a, object data)
         {
-            if (!IsConnected) return;
-            
-            await _sendLock.WaitAsync();
-            try 
+            if (a == null || a.closedByClient || a.socket.State != WebSocketState.Open) return;
+            try { await a.sendLock.WaitAsync(a.cts.Token); }
+            catch { return; }
+            try
             {
-                if (!IsConnected) return;
-                string json = JsonConvert.SerializeObject(data, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-                await _webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Text, true, CancellationToken.None); 
+                if (a.closedByClient || a.socket.State != WebSocketState.Open) return;
+                string json = data is JToken token ? token.ToString(Formatting.None) : JsonConvert.SerializeObject(data, SendSettings);
+                await a.socket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Text, true, a.cts.Token);
             }
-            catch(Exception ex) { IVALogger.Error(LogTag, "Send Error", ex); }
-            finally { _sendLock.Release(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { if (!a.closedByClient) IVALogger.Error(LogTag, "Send Error", ex); }
+            finally { a.sendLock.Release(); }
         }
 
-        private async Task ReceiveLoop()
+        private async Task ReceiveLoop(SessionAttempt a)
         {
             var buffer = new byte[65536];
             DisconnectReason reason = DisconnectReason.Unknown;
+            string closeDescription = null;
             try
             {
-                while (IsConnected && !_cancellationTokenSource.IsCancellationRequested)
+                while (!a.closedByClient && a.socket.State == WebSocketState.Open)
                 {
                     var ms = new System.IO.MemoryStream();
                     WebSocketReceiveResult result;
                     do
                     {
-                        result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
+                        result = await a.socket.ReceiveAsync(new ArraySegment<byte>(buffer), a.cts.Token);
                         ms.Write(buffer, 0, result.Count);
                     } while (!result.EndOfMessage);
 
@@ -764,32 +1058,23 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     {
                         // The description carries Google's reason (e.g. "Resource exhausted" on a quota
                         // refusal, which arrives as 1011 InternalServerError); without it every refusal looks alike.
-                        IVALogger.Warn(LogTag, $"Server Closed Connection. Status: {result.CloseStatus} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}");
+                        closeDescription = $"{(int?)result.CloseStatus} {result.CloseStatusDescription}".Trim();
+                        if (!a.closedByClient)
+                            IVALogger.Warn(LogTag, $"Server Closed Connection{(a.location.Length > 0 ? $" ({a.location})" : "")}. Status: {result.CloseStatus} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}");
                         reason = DisconnectReason.ServerClosed;
-
-                        // A close before setupComplete is a refused setup (model not offered in this location,
-                        // an unsupported field, no access, no capacity). Without auto-reconnect nothing else
-                        // reports it, and the agent would sit on "Connecting..." indefinitely.
-                        if (!_setupAcknowledged && !autoReconnect)
-                        {
-                            string where = IsVertexModel() ? $"'{GetModelString()}' in Vertex location '{VertexLocation}'" : $"'{GetModelString()}'";
-                            FailFast(new ServiceConnectionException(
-                                $"Gemini refused the session for {where} ({(int?)result.CloseStatus}): {result.CloseStatusDescription}"),
-                                DisconnectReason.ServerClosed);
-                        }
                         break;
                     }
 
-                    string jsonResponse = Encoding.UTF8.GetString(ms.ToArray());
-                    ProcessMessage(jsonResponse);
+                    ProcessMessage(Encoding.UTF8.GetString(ms.ToArray()), a);
                 }
             }
             catch (Exception ex)
             {
-                if (!_cancellationTokenSource.IsCancellationRequested)
+                if (!a.closedByClient)
                 {
                     IVALogger.Info(LogTag, $"Receive Loop Stopped: {ex.Message}");
                     reason = DisconnectReason.NetworkError;
+                    closeDescription = ex.Message;
                 }
                 else
                 {
@@ -797,82 +1082,162 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                 }
             }
 
-            HandleReceiveLoopExit(reason);
+            HandleReceiveLoopExit(a, reason, closeDescription);
         }
 
-        private void HandleReceiveLoopExit(DisconnectReason reason)
+        private void HandleReceiveLoopExit(SessionAttempt a, DisconnectReason reason, string closeDescription)
         {
-            if (_userRequestedDisconnect) return; // DisconnectAsync already fired the event
+            // Closed by us (reconnect, disconnect): whoever closed it already reported what matters.
+            if (a.closedByClient) return;
 
-            if (!_disconnectFired)
+            if (!a.acknowledged)
             {
-                _disconnectFired = true;
-                EnqueueMainThread(() => OnDisconnected?.Invoke(reason));
+                // A close before setupComplete is a refused setup (model not offered in this location, an
+                // unsupported field, no access, no capacity). The connect loop decides what to do next.
+                a.setupOutcome.TrySetResult(string.IsNullOrEmpty(closeDescription) ? "connection closed before setup" : closeDescription);
+                return;
             }
 
-            if (autoReconnect && reason != DisconnectReason.UserRequested && reason != DisconnectReason.AuthFailure)
-            {
+            if (_session != a) return;   // a newer connection has already taken over
+            _session = null;
+            ModelTurnInProgress = false;
+            _ = CloseAttemptAsync(a);   // marks it closed at once, then releases the socket
+
+            int conversation = a.conversation;
+            EnqueueMainThread(() => { if (conversation == _conversation) OnDisconnected?.Invoke(reason); });
+
+            if (_userRequestedDisconnect || conversation != _conversation) return;
+            // After a goAway, ResumeAfterGoAwayAsync is already waiting and takes over once _session is null.
+            if (autoReconnect && reason != DisconnectReason.AuthFailure)
                 _ = TryReconnectAsync();
-            }
         }
 
         private async Task TryReconnectAsync()
         {
-            while (_reconnectAttempt < maxReconnectAttempts && !_userRequestedDisconnect)
+            if (_reconnecting) return;
+            _reconnecting = true;
+            int conversation = _conversation;
+            try
             {
-                _reconnectAttempt++;
-                float delay = Mathf.Min(30f, reconnectBaseDelaySeconds * Mathf.Pow(2, _reconnectAttempt - 1));
-                int attemptSnapshot = _reconnectAttempt;
-                EnqueueMainThread(() => OnReconnecting?.Invoke(attemptSnapshot));
-                IVALogger.Info(LogTag, $"Reconnect attempt {_reconnectAttempt}/{maxReconnectAttempts} in {delay:0.0}s");
-
-                try { await Task.Delay(TimeSpan.FromSeconds(delay)); } catch { }
-                if (_userRequestedDisconnect) return;
-
-                try
+                while (_reconnectAttempt < maxReconnectAttempts && !_userRequestedDisconnect && conversation == _conversation)
                 {
-                    _disconnectFired = false; // Allow next disconnect cycle to fire cleanly
-                    if (_usedDynamicToolsConnect)
+                    _reconnectAttempt++;
+                    // First retry almost at once (a dropped or recycled connection resumes fine), then back off.
+                    float delay = _reconnectAttempt == 1
+                        ? 0.25f
+                        : Mathf.Min(30f, reconnectBaseDelaySeconds * Mathf.Pow(2, _reconnectAttempt - 2));
+                    int attemptSnapshot = _reconnectAttempt;
+                    EnqueueMainThread(() => { if (conversation == _conversation) OnReconnecting?.Invoke(attemptSnapshot); });
+                    IVALogger.Info(LogTag, $"Reconnect attempt {_reconnectAttempt}/{maxReconnectAttempts} in {delay:0.0}s");
+
+                    try { await Task.Delay(TimeSpan.FromSeconds(delay)); } catch { }
+                    if (_userRequestedDisconnect || conversation != _conversation) return;
+
+                    try
                     {
-                        await ConnectWithDynamicToolsAsync(_lastSystemInstruction, _lastVoiceName, _lastDynamicTools);
+                        var result = await OpenSessionAsync(resume: true, automatic: true, reportFailure: false);
+                        if (result != OpenResult.Failed) return;   // established (attempts reset on ack), auth error reported, or superseded
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        await ConnectAsync(_lastSystemInstruction, _lastVoiceName, _lastHasLocomotion);
+                        IVALogger.Warn(LogTag, $"Reconnect attempt {_reconnectAttempt} failed: {ex.Message}");
                     }
-                    return; // Success; _reconnectAttempt resets on setup ack
                 }
-                catch (Exception ex)
+
+                if (_userRequestedDisconnect || conversation != _conversation) return;
+                var fatal = new ServiceConnectionException(
+                    $"Reconnect retries exhausted after {_reconnectAttempt} attempts", _reconnectAttempt);
+                IVALogger.Error(LogTag, fatal.Message, fatal);
+                EnqueueMainThread(() =>
                 {
-                    IVALogger.Warn(LogTag, $"Reconnect attempt {_reconnectAttempt} failed: {ex.Message}");
-                }
+                    if (conversation != _conversation) return;
+                    OnDisconnected?.Invoke(DisconnectReason.RetriesExhausted);
+                    OnFatalError?.Invoke(fatal);
+                });
             }
-
-            var fatal = new ServiceConnectionException(
-                $"Reconnect retries exhausted after {_reconnectAttempt} attempts", _reconnectAttempt);
-            EnqueueMainThread(() =>
+            finally
             {
-                OnDisconnected?.Invoke(DisconnectReason.RetriesExhausted);
-                OnFatalError?.Invoke(fatal);
-            });
+                _reconnecting = false;
+            }
         }
 
-        private void ProcessMessage(string json)
+        /// <summary>
+        /// Moves the session to a new connection after a <c>goAway</c>: waits until the current reply has
+        /// been sent (or the time is nearly up), then reopens with the resumption handle. The agent keeps
+        /// playing what it already received; the conversation continues where it was.
+        /// </summary>
+        private async Task ResumeAfterGoAwayAsync(SessionAttempt a, float timeLeftSeconds)
         {
+            int conversation = _conversation;
+            double budget = Math.Max(0.5, Math.Min(timeLeftSeconds - 1.5, 30.0));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (clock.Elapsed.TotalSeconds < budget && ModelTurnInProgress && _session == a && conversation == _conversation)
+            {
+                try { await Task.Delay(100); } catch { }
+            }
+            if (_userRequestedDisconnect || conversation != _conversation) return;
+            // The connection may already have dropped and been replaced by auto-reconnect.
+            if (_session != a && _session != null) return;
+            if (_reconnecting) return;
+
+            IVALogger.Info(LogTag, "Server is recycling the connection; resuming the session on a new connection.");
+            var result = await OpenSessionAsync(resume: true, automatic: true, reportFailure: !autoReconnect);
+            if (result == OpenResult.Failed && autoReconnect && !_userRequestedDisconnect && conversation == _conversation)
+                _ = TryReconnectAsync();
+        }
+
+        private void ProcessMessage(string json, SessionAttempt a)
+        {
+            // Messages of a connection that has been replaced or closed are ignored.
+            if (a.closedByClient || (_session != a && a.acknowledged)) return;
+            int conversation = a.conversation;
+
             try
             {
                 var root = JObject.Parse(json);
-                
+
                 if (root["setupComplete"] != null || root["setup_complete"] != null)
                 {
-                    _setupAcknowledged = true;
+                    a.acknowledged = true;
                     _reconnectAttempt = 0; // Reset on successful setup
+                    bool resumed = a.resuming;
+                    // Automatic only when it continues a conversation that was already running; a first
+                    // connect that needed retries is still the start of the conversation (greet as usual).
+                    bool automatic = a.automatic && _establishedConversation == conversation;
+                    _establishedConversation = conversation;
+                    if (a.location.Length > 0 && a.location != VertexLocation)
+                        IVALogger.Warn(LogTag, $"Session started in fallback Vertex location '{a.location}'.");
+                    a.setupOutcome.TrySetResult(null);
                     EnqueueMainThread(() =>
                     {
+                        if (conversation != _conversation || _session != a) return;
+                        IsResumedSession = resumed;
+                        IsAutomaticReconnect = automatic;
                         OnSetupComplete?.Invoke();
                         OnConnected?.Invoke();
                     });
                     return;
+                }
+
+                JToken resumption = root["sessionResumptionUpdate"] ?? root["session_resumption_update"];
+                if (resumption != null)
+                {
+                    string newHandle = (resumption["newHandle"] ?? resumption["new_handle"])?.ToString();
+                    bool resumable = resumption["resumable"]?.Value<bool>() ?? false;
+                    if (resumable && !string.IsNullOrEmpty(newHandle) && conversation == _conversation) _resumeHandle = newHandle;
+                }
+
+                JToken goAway = root["goAway"] ?? root["go_away"];
+                if (goAway != null)
+                {
+                    float timeLeft = ParseDurationSeconds((goAway["timeLeft"] ?? goAway["time_left"])?.ToString());
+                    IVALogger.Info(LogTag, $"Server will close this connection in {timeLeft:0.#}s (goAway).");
+                    EnqueueMainThread(() => { if (conversation == _conversation) OnGoAway?.Invoke(timeLeft); });
+                    if (enableSessionResumption && !a.goAwayHandled)
+                    {
+                        a.goAwayHandled = true;
+                        _ = ResumeAfterGoAwayAsync(a, timeLeft);
+                    }
                 }
 
                 // TOOL CALLS
@@ -887,7 +1252,6 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                             string fnName = call["name"]?.ToString();
                             string callId = call["id"]?.ToString();
 
-
                             if (fnName == "update_avatar_state")
                             {
                                 var args = call["args"];
@@ -895,25 +1259,24 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                                 string emo = args?["emotion"]?.ToString() ?? "";
                                 string gaze = args?["gaze"]?.ToString() ?? "";
 
-                                EnqueueMainThread(() => OnCommandReceived?.Invoke(act, emo, gaze));
-                                _ = SendToolResponse(callId); 
+                                EnqueueMainThread(() => { if (conversation == _conversation) OnCommandReceived?.Invoke(act, emo, gaze); });
+                                _ = SendToolResponse(a, callId);
                             }
                             else if (fnName == "move_agent")
                             {
                                 var args = call["args"];
-                                string dir = args?["direction"]?.ToString() ?? "Backward";
-                                float angle = args["angle"]?.Value<float>() ?? 0f;
-                                float distance = args["distance"]?.Value<float>() ?? 1.0f;
-                                float speed = args["speed"]?.Value<float>() ?? 1.0f;
-                                bool faceMovementDirection = args["faceMovementDirection"]?.Value<bool>() ?? true;
+                                float angle = args?["angle"]?.Value<float>() ?? 0f;
+                                float distance = args?["distance"]?.Value<float>() ?? 1.0f;
+                                float speed = args?["speed"]?.Value<float>() ?? 1.0f;
+                                bool faceMovementDirection = args?["faceMovementDirection"]?.Value<bool>() ?? true;
 
-                                EnqueueMainThread(() => OnMoveCommand?.Invoke(angle, distance, speed, faceMovementDirection));
-                                _ = SendToolResponse(callId, "move_agent");
+                                EnqueueMainThread(() => { if (conversation == _conversation) OnMoveCommand?.Invoke(angle, distance, speed, faceMovementDirection); });
+                                _ = SendToolResponse(a, callId, "move_agent");
                             }
                             else
                             {
                                 JToken args = call["args"];
-                                EnqueueMainThread(() => OnGenericToolCallReceived?.Invoke(callId, fnName, args));
+                                EnqueueMainThread(() => { if (conversation == _conversation) OnGenericToolCallReceived?.Invoke(callId, fnName, args); });
                             }
                         }
                     }
@@ -928,24 +1291,25 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                         // Gemini has acknowledged the interruption server-side and stopped generating
                         // for the prior turn. Surface this so the agent can release post-interrupt
                         // audio drop guards.
-                        EnqueueMainThread(() => OnServerInterrupted?.Invoke());
+                        ModelTurnInProgress = false;
+                        EnqueueMainThread(() => { if (conversation == _conversation) OnServerInterrupted?.Invoke(); });
                     }
-
-                    if (serverContent["turnComplete"]?.Value<bool>() == true || serverContent["turn_complete"]?.Value<bool>() == true)
-                        EnqueueMainThread(() => OnTurnComplete?.Invoke());
 
                     // Server-side transcription channels (only present when enableTranscription is true).
                     JToken outObj = serverContent["outputTranscription"] ?? serverContent["output_transcription"];
                     string outputTranscript = outObj?["text"]?.ToString();
                     if (!string.IsNullOrEmpty(outputTranscript))
-                        EnqueueMainThread(() => OnTextReceived?.Invoke(outputTranscript));
+                    {
+                        // Not a turn marker: the transcription can trail the audio and arrive after turnComplete.
+                        EnqueueMainThread(() => { if (conversation == _conversation) OnTextReceived?.Invoke(outputTranscript); });
+                    }
 
                     JToken inObj = serverContent["inputTranscription"] ?? serverContent["input_transcription"];
                     string inputTranscript = inObj?["text"]?.ToString();
                     if (!string.IsNullOrEmpty(inputTranscript))
                     {
                         if (verboseLogging) IVALogger.Debug(LogTag, $"User transcript: {inputTranscript}");
-                        EnqueueMainThread(() => OnUserTranscriptReceived?.Invoke(inputTranscript));
+                        EnqueueMainThread(() => { if (conversation == _conversation) OnUserTranscriptReceived?.Invoke(inputTranscript); });
                     }
 
                     JToken parts = serverContent["modelTurn"]?["parts"] ?? serverContent["model_turn"]?["parts"];
@@ -953,82 +1317,43 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
                     {
                         foreach (var part in parts)
                         {
-                            if (part["text"] != null) 
-                                EnqueueMainThread(() => OnTextReceived?.Invoke(part["text"].ToString()));
-                            
+                            if (part["text"] != null)
+                            {
+                                string text = part["text"].ToString();
+                                ModelTurnInProgress = true;
+                                EnqueueMainThread(() => { if (conversation == _conversation) OnTextReceived?.Invoke(text); });
+                            }
+
                             if (part["inlineData"] != null || part["inline_data"] != null)
                             {
                                 JToken dataObj = part["inlineData"] ?? part["inline_data"];
                                 byte[] audio = Convert.FromBase64String(dataObj["data"].ToString());
-                                EnqueueMainThread(() => OnAudioReceived?.Invoke(audio));
+                                ModelTurnInProgress = true;
+                                EnqueueMainThread(() => { if (conversation == _conversation) OnAudioReceived?.Invoke(audio); });
                             }
                         }
+                    }
+
+                    if (serverContent["turnComplete"]?.Value<bool>() == true || serverContent["turn_complete"]?.Value<bool>() == true)
+                    {
+                        ModelTurnInProgress = false;
+                        EnqueueMainThread(() => { if (conversation == _conversation) OnTurnComplete?.Invoke(); });
                     }
                 }
             }
             catch (Exception ex) { if(verboseLogging) IVALogger.Warn(LogTag, $"Parse Error: {ex.Message}"); }
         }
 
+        /// <summary>Parses a protobuf JSON duration ("5s", "1.500s") into seconds; 0 when absent or unreadable.</summary>
+        private static float ParseDurationSeconds(string duration)
+        {
+            if (string.IsNullOrEmpty(duration)) return 0f;
+            string s = duration.Trim().TrimEnd('s', 'S');
+            return float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? v : 0f;
+        }
+
         private void EnqueueMainThread(Action action) { lock (_queueLock) { _mainThreadQueue.Enqueue(action); } }
 
-        /// <summary>
-        /// Opens a Gemini Live session with a caller-supplied set of tool declarations in addition to
-        /// the built-in <c>update_avatar_state</c>. Pair with <see cref="OnGenericToolCallReceived"/>
-        /// and <see cref="SendGenericToolResponseAsync"/> to service the calls.
-        /// </summary>
-        /// <param name="systemInstruction">Persona / rules prompt delivered at session setup.</param>
-        /// <param name="voiceName">Gemini prebuilt voice name.</param>
-        /// <param name="dynamicToolsDeclaration">Array of function declaration JObjects, Gemini tool schema.</param>
-        public async Task ConnectWithDynamicToolsAsync(string systemInstruction, string voiceName, JArray dynamicToolsDeclaration)
-        {
-            _lastSystemInstruction = systemInstruction;
-            _lastVoiceName = voiceName;
-            _lastDynamicTools = dynamicToolsDeclaration;
-            _usedDynamicToolsConnect = true;
-            _userRequestedDisconnect = false;
-            _disconnectFired = false;
-
-            await DisconnectInternalAsync(userRequested: false, fireEvent: false);
-
-            // Shares ResolveEndpointAsync with ConnectAsync. Before v3.0.1 this path built its own
-            // URI and skipped Vertex auth entirely, so any agent with a tool attached (e.g. the RAG
-            // sample's search_knowledge) could not connect to Vertex at all.
-            var endpoint = await ResolveEndpointAsync();
-            if (!endpoint.ok) return;
-
-            if (!await OpenSocketAsync(endpoint.uri, endpoint.modelId)) return;
-
-            await SendSetupWithDynamicTools(endpoint.modelId, systemInstruction, voiceName, dynamicToolsDeclaration);
-        }
-
-        private async Task SendSetupWithDynamicTools(string model, string systemPrompt, string voice, JArray dynamicFunctionDeclarations)
-        {
-            var setupContent = BuildSetupContent(model, systemPrompt, voice);
-
-            var toolsArray = new JArray();
-            var toolWrapper = new JObject();
-            var functionDeclarations = new JArray();
-
-            functionDeclarations.Add(new JObject {
-                ["name"] = "update_avatar_state",
-                ["description"] = "Change the avatar's physical behavior.",
-                ["parameters"] = JObject.Parse("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"emotion\":{\"type\":\"string\"},\"gaze\":{\"type\":\"string\"}},\"required\":[\"action\",\"emotion\",\"gaze\"]}")
-            });
-
-            foreach(var dt in dynamicFunctionDeclarations) {
-                functionDeclarations.Add(dt);
-            }
-
-            toolWrapper["function_declarations"] = functionDeclarations;
-            toolsArray.Add(toolWrapper);
-            setupContent["tools"] = toolsArray;
-
-            var setupData = new JObject { ["setup"] = setupContent };
-
-            if (verboseLogging) IVALogger.Info(LogTag, $"Sending Setup: {setupData.ToString(Newtonsoft.Json.Formatting.None)}");
-
-            await SendJsonAsync(setupData);
-        }
         /// <summary>
         /// Returns the result of a tool call to Gemini so the model can continue its turn.
         /// Must be called after handling a <see cref="OnGenericToolCallReceived"/> event.
@@ -1039,7 +1364,7 @@ namespace IVH.Core.ServiceConnector.Gemini.Realtime
         public async Task SendGenericToolResponseAsync(string id, string name, object responsePayload)
         {
             var msg = new { tool_response = new { function_responses = new[] { new { id = id, name = name, response = responsePayload } } } };
-            await SendJsonAsync(msg);
+            await SendJsonAsync(_session, msg);
         }
 
     }
